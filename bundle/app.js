@@ -380,7 +380,7 @@ function renderHistory(item) {
 }
 
 function renderPendingTransition(proposal) {
-  return `<section class="cf-pending"><p class="cf-eyebrow">Human review required</p><h3>Proposed case transition</h3>
+  return `<section class="cf-pending" id="cf-pending-transition"><p class="cf-eyebrow">Human review required</p><h3>Proposed case transition</h3>
     <p class="cf-muted">AI-generated proposal only—not independently verified. Check each field against the evidence before applying it.</p>
     ${[["Proposed state", proposal.state], ["Proposed blocker", proposal.blocker], ["Proposed next action", proposal.nextAction], ["AI explanation", proposal.reason]].map(([label, value]) => `<div class="cf-card"><div class="cf-muted">${label}</div><p>${escapeHtml(value)}</p></div>`).join("")}
     <div class="cf-pending-actions"><button type="button" class="cf-button cf-button-primary" data-cf-action="confirm-transition">Confirm & apply</button>
@@ -407,10 +407,10 @@ function showCaseDetail() {
     <div class="cf-detail-grid">
       <section class="cf-card"><h3>Current situation</h3><p>${escapeHtml(item.situation || "Not recorded")}</p></section>
       <section class="cf-card"><h3>Current blocker</h3><p>${escapeHtml(item.blocker || "Not recorded")}</p></section>
-      <section class="cf-card"><h3>Next action</h3><p>${escapeHtml(item.nextAction || "Not recorded")}</p></section>
+      <section class="cf-card" id="cf-next-action"><h3>Next action</h3><p>${escapeHtml(item.nextAction || "Not recorded")}</p></section>
       <section class="cf-card"><h3>Evidence summary</h3><p>${item.evidence.length} evidence item(s) recorded.</p><p class="cf-muted" style="margin-top:8px">Evidence does not automatically establish that a claim is true.</p></section>
     </div>
-    <section class="cf-card"><h3>Add evidence</h3><p class="cf-muted">Record a new document, event, observation or update. Evidence saves first; AI analysis is optional and depends on Anna runtime availability.</p>
+    <section class="cf-card" id="cf-evidence-section"><h3>Add evidence</h3><p class="cf-muted">Record a new document, event, observation or update. Evidence saves first; AI analysis is optional and depends on Anna runtime availability.</p>
       <form id="cf-evidence-form" class="cf-form"><div class="cf-field"><label for="cf-evidence">New evidence</label>
       <textarea id="cf-evidence" name="evidence" maxlength="12000" placeholder="What new information has arrived? Include relevant context and what it actually demonstrates." required></textarea></div>
       <div class="cf-form-actions"><button type="submit" class="cf-button cf-button-primary">Save evidence & analyze</button></div></form>
@@ -805,6 +805,46 @@ function handleActionClick(event) {
   if (action === "reject-transition") return rejectTransition();
 }
 
+
+function handleWelcomeAction(event) {
+  const button = event.target.closest("[data-welcome-action]");
+  if (!button) return;
+  const action = button.dataset.welcomeAction;
+  const container = $("cases-container");
+
+  if (action === "cases") {
+    container?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  if (!state.cases.length) {
+    showCaseDefinitionForm();
+    $("cf-title")?.focus();
+    return;
+  }
+
+  const item = [...state.cases].sort((a, b) =>
+    new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
+  )[0];
+  state.activeCaseId = item.id;
+  showCaseDetail();
+
+  const hasProposal = state.pendingTransition?.caseId === item.id;
+  const targetId = action === "next-action" ? "cf-next-action"
+    : action === "evidence" ? "cf-evidence-section"
+    : hasProposal ? "cf-pending-transition" : "cf-evidence-section";
+  $(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  if (action === "review" && !hasProposal) {
+    showNotice(
+      state.anna
+        ? "No pending AI proposal for this case. Add new evidence to request an analysis, then review the proposal before applying it."
+        : "No pending AI proposal for this case. Evidence can be saved locally, but AI transition analysis requires the Anna app runtime and is unavailable in this local Render mode.",
+      "warning"
+    );
+  }
+}
+
 async function connectAnna() {
   try {
     // This SDK exists inside the Anna host, not on ordinary static hosting such as Render.
@@ -843,6 +883,9 @@ async function main() {
 
   // Keep dynamically rendered buttons working through event delegation.
   container.addEventListener("click", handleActionClick);
+
+  // Connect the hero feature controls to actual case workflows.
+  $("welcome-capabilities")?.addEventListener("click", handleWelcomeAction);
 
   const primaryButton = $("primary-btn");
 
