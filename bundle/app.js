@@ -1,5 +1,3 @@
-import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
-
 const STORAGE_KEY = "caseflow:cases";
 
 const INITIAL_STATE = "NEW";
@@ -1539,6 +1537,10 @@ function handleActionClick(event) {
 
 async function connectAnna() {
   try {
+    const { AnnaAppRuntime } = await import(
+      "/static/anna-apps/_sdk/latest/index.js"
+    );
+
     state.anna = await AnnaAppRuntime.connect();
 
     if (!state.anna?.llm?.complete) {
