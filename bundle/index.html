@@ -215,14 +215,25 @@
       margin-top: 25px;
     }
 
-    .welcome-pills span {
-      padding: 8px 12px;
-      border: 1px solid rgba(164,174,220,.17);
+    .welcome-pills button {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 13px;
+      border: 1px solid rgba(164,174,220,.2);
       border-radius: 999px;
       background: rgba(255,255,255,.035);
       color: #d6d9ee;
       font-size: 10px;
-      font-weight: 700;
+      font-weight: 750;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+    .welcome-pills button span { color: #a99bff; font-size: 13px; }
+    .welcome-pills button:hover {
+      transform: translateY(-2px);
+      border-color: rgba(169,151,255,.7);
+      background: rgba(137,117,255,.13);
     }
 
     #cases-container {
@@ -705,11 +716,11 @@
           actionable next steps, evidence, and a transparent history
           of every change.
         </p>
-        <div class="welcome-pills" aria-label="CASEFLOW capabilities">
-          <span>✦ Living case records</span>
-          <span>↗ Actionable next steps</span>
-          <span>◈ Evidence & history</span>
-          <span>✓ Human-reviewed decisions</span>
+        <div class="welcome-pills" id="welcome-capabilities" aria-label="Explore CASEFLOW capabilities">
+          <button type="button" data-welcome-action="cases">✦ Living case records <span aria-hidden="true">↗</span></button>
+          <button type="button" data-welcome-action="next-action">↗ Actionable next steps <span aria-hidden="true">↗</span></button>
+          <button type="button" data-welcome-action="evidence">◈ Evidence &amp; history <span aria-hidden="true">↗</span></button>
+          <button type="button" data-welcome-action="review">✓ Human-reviewed decisions <span aria-hidden="true">↗</span></button>
         </div>
       </section>
 
