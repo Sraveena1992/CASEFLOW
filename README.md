@@ -82,7 +82,7 @@ flowchart TD
     G --> H
     H --> I["➡️ Identify Next Action"]
 
-🧪 Example: Vendor Payment Delay
+## 🧪 Example: Vendor Payment Delay
 Imagine a business has a delayed supplier payment and conflicting invoice information.
 
 CASEFLOW can help organize the case, capture available evidence, surface missing information, propose a state change for human review, and record the resulting decision.
