@@ -70,8 +70,7 @@ CASEFLOW aims to make these situations more structured, transparent, and easier 
 6. **Record the result** — preserve the case state and decision history.
 7. **Continue toward resolution** — identify the next useful action.
 
-```mermaid
-flowchart TD
+**flowchart TD**
     A["🎯 Define the Goal"] --> B["🗂️ Create a Living Case"]
     B --> C["📎 Capture Evidence"]
     C --> D["🧠 Analyze & Propose"]
@@ -92,7 +91,6 @@ It should not label a discrepancy as fraud without evidence, or claim that a pay
 
 ---
 
-```markdown
 ## 🧭 Our Product Vision
 
 CASEFLOW is designed around one shared workflow engine, with specialized experiences planned for different needs.
@@ -115,11 +113,10 @@ These are roadmap directions, not claims that every agent or integration is alre
 - **Python `unittest`** — automated validation tests
 - **Browser Local Storage** — prototype case persistence
 
-### Run locally
+## Run locally
 
 Requirements: Windows, Node.js/npm, Python managed through `uv`, and the Anna App CLI.
 
-```powershell
 # Navigate to the project
 cd C:\Users\acer\caseflow
 
@@ -136,7 +133,7 @@ If the runtime starts successfully, open the local dashboard URL printed in the 
 
 Note: the local runtime has previously encountered a Python bridge startup timeout. A successful validation or test run does not by itself guarantee that the runtime will launch on every machine.
 
-🔐 Security, Trust & Human Control
+🔐 **Security, Trust & Human Control**
 CASEFLOW's design principles:
 
 🛡️ Human review for proposed state transitions
@@ -153,32 +150,21 @@ CASEFLOW's design principles:
 
 Production deployment will require additional work, including secure authentication, server-side persistence, access control, secret management, integration security, recovery, and privacy safeguards.
 
-🗺️ Roadmap
-[ ] Structured case-management prototype
+🗺️ ## Roadmap
+- [ ] Structured case-management prototype
+- [ ] Evidence capture and case history
+- [ ] AI-assisted transition proposals
+- [ ] Human approval and rejection flow
+- [ ] Executa transition validation tests
+- [ ] Improve end-to-end runtime reliability
+- [ ] Build a reusable goal-to-outcome execution engine
+- [ ] Add evidence-linked decisions and stronger audit records
+- [ ] Implement authorized external integrations
+- [ ] Verify real action outcomes
+- [ ] Add secure multi-user workspaces
+- [ ] Test with real users and measure resolution outcomes
 
-[ ] Evidence capture and case history
-
-[ ] AI-assisted transition proposals
-
-[ ] Human approval and rejection flow
-
-[ ] Executa transition validation tests
-
-[ ] Improve end-to-end runtime reliability
-
-[ ] Build a reusable goal-to-outcome execution engine
-
-[ ] Add evidence-linked decisions and stronger audit records
-
-[ ] Implement authorized external integrations
-
-[ ] Verify real action outcomes
-
-[ ] Add secure multi-user workspaces
-
-[ ] Test with real users and measure resolution outcomes
-
-🤝 Contributing & Feedback
+🤝 **Contributing & Feedback**
 Ideas, issue reports, and constructive feedback are welcome.
 
 🐛 Open an issue
@@ -187,10 +173,10 @@ Ideas, issue reports, and constructive feedback are welcome.
 
 👀 Explore the source code
 
-👩‍💻 Built by
+👩‍💻 **Built by**
 Sraveena Sharma
 
 GitHub: @Sraveena1992
 
-📜 License
-No open-source license has been declared yet. Unless a license is added, public visibility does not automatically grant permission to reuse, modify, or redistribute the source code.
+📜 License 
+- No open-source license has been declared yet. Unless a license is added, public visibility does not automatically grant permission to reuse, modify, or redistribute the source code.
