@@ -1,0 +1,2 @@
+[console_scripts]
+tool-dev-caseflow = caseflow_plugin:main

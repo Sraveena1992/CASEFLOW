@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tool-dev-caseflow"
+version = "0.1.0"
+description = "Executa for the caseflow Anna App"
+requires-python = ">=3.10"
+
+[project.scripts]
+"tool-dev-caseflow" = "caseflow_plugin:main"
+
+[tool.setuptools]
+py-modules = ["caseflow_plugin"]

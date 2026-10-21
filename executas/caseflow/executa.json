@@ -1,0 +1,1 @@
+{"slug":"caseflow","name":"CASEFLOW","version":"0.1.0","executa_type":"tool","description":"Validates proposed case transitions before human review; does not independently verify evidence.","tool_id":"tool-dev-caseflow","type":"python"}

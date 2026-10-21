@@ -1,0 +1,59 @@
+{
+    "name":  "tool-dev-caseflow",
+    "display_name":  "CASEFLOW Transition Validator",
+    "version":  "0.1.0",
+    "description":  "Checks required fields for a proposed case transition before human review. Does not independently verify evidence or approve transitions.",
+    "tools":  [
+                  {
+                      "name":  "ping",
+                      "description":  "Smoke-test the CASEFLOW Executa.",
+                      "parameters":  [
+
+                                     ],
+                      "timeout":  10
+                  },
+                  {
+                      "name":  "evaluate_transition",
+                      "description":  "Check that evidence and all proposed transition fields are present before human review.",
+                      "parameters":  [
+                                         {
+                                             "name":  "evidence",
+                                             "type":  "string",
+                                             "description":  "Evidence submitted for the case.",
+                                             "required":  true
+                                         },
+                                         {
+                                             "name":  "proposed_state",
+                                             "type":  "string",
+                                             "description":  "Proposed case state.",
+                                             "required":  true
+                                         },
+                                         {
+                                             "name":  "proposed_blocker",
+                                             "type":  "string",
+                                             "description":  "Proposed current blocker.",
+                                             "required":  true
+                                         },
+                                         {
+                                             "name":  "proposed_next_action",
+                                             "type":  "string",
+                                             "description":  "Proposed next action.",
+                                             "required":  true
+                                         },
+                                         {
+                                             "name":  "reason",
+                                             "type":  "string",
+                                             "description":  "Reason supporting the proposal.",
+                                             "required":  true
+                                         }
+                                     ],
+                      "timeout":  10
+                  }
+              ],
+    "credentials":  [
+
+                    ],
+    "host_capabilities":  [
+
+                          ]
+}

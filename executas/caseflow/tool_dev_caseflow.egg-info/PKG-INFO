@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: tool-dev-caseflow
+Version: 0.1.0
+Summary: Executa for the caseflow Anna App
+Requires-Python: >=3.10

@@ -1,0 +1,63 @@
+{
+    "schema":  2,
+    "required_executas":  [
+                              {
+                                  "tool_id":  "bundled:caseflow",
+                                  "min_version":  "0.1.0",
+                                  "version":  "latest"
+                              }
+                          ],
+    "tags":  [
+                 "caseflow"
+             ],
+    "ui":  {
+               "bundle":  {
+                              "format":  "static-spa",
+                              "entry":  "index.html",
+                              "external_origins":  [
+
+                                                   ]
+                          },
+               "views":  [
+                             {
+                                 "name":  "main",
+                                 "title":  "CASEFLOW",
+                                 "default":  true,
+                                 "default_size":  {
+                                                      "w":  900,
+                                                      "h":  700
+                                                  },
+                                 "min_size":  {
+                                                  "w":  640,
+                                                  "h":  480
+                                              }
+                             }
+                         ],
+               "host_api":  {
+                                "llm":  [
+                                            "complete"
+                                        ],
+                                "storage":  [
+                                                "get",
+                                                "set"
+                                            ],
+                                "window":  [
+                                               "set_title",
+                                               "ready"
+                                           ]
+                            },
+               "csp_overrides":  {
+
+                                 },
+               "state_merge":  "last_writer_wins"
+           },
+    "dev":  {
+                "fixtures":  [
+                                 "fixtures/*.jsonl"
+                             ],
+                "seed_storage":  {
+
+                                 },
+                "user_id":  1
+            }
+}

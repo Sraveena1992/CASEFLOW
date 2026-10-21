@@ -1,0 +1,1297 @@
+import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
+
+const STORAGE_KEY = "caseflow:cases";
+
+async function main() {
+  const status = document.getElementById("status");
+  const runtimeLabel = document.getElementById("runtime-label");
+  const statusDot = document.getElementById("status-dot");
+  const primaryBtn = document.getElementById("primary-btn");
+  const casesContainer = document.getElementById("cases-container");
+
+  if (!status || !primaryBtn || !casesContainer) return;
+
+  let anna = null;
+  let cases = [];
+  let currentCaseId = null;
+
+  function setRuntimeState(connected) {
+    if (runtimeLabel) {
+      runtimeLabel.textContent = connected
+        ? "Anna connected"
+        : "Anna connection unavailable";
+    }
+
+    if (statusDot) {
+      statusDot.style.background = connected
+        ? "#16a34a"
+        : "#dc2626";
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatDate(value) {
+    if (!value) return "Unknown";
+
+    try {
+      return new Date(value).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+      });
+    } catch {
+      return "Unknown";
+    }
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "Unknown";
+
+    try {
+      return new Date(value).toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    } catch {
+      return "Unknown";
+    }
+  }
+
+  function getCurrentCase() {
+    return cases.find((item) => item.id === currentCaseId);
+  }
+
+  async function saveCases() {
+    await anna.storage.set({
+      key: STORAGE_KEY,
+      value: cases
+    });
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * CASEFLOW AI TRANSITION ENGINE
+   * ---------------------------------------------------------
+   *
+   * Evidence is analyzed against the current case.
+   *
+   * The model returns:
+   *   state
+   *   blocker
+   *   nextAction
+   *   reason
+   *
+   * The application validates the response before applying it.
+   */
+  async function analyzeEvidence(caseItem, evidenceText) {
+    const prompt = `
+You are the decision engine inside CASEFLOW.
+
+CASEFLOW manages a living real-world situation as structured state.
+
+Your task is to analyze NEW EVIDENCE against the CURRENT CASE and
+propose the most accurate current state.
+
+CURRENT CASE
+
+Title:
+${caseItem.title}
+
+Current state:
+${caseItem.state}
+
+Current blocker:
+${caseItem.blocker}
+
+Current next action:
+${caseItem.nextAction}
+
+NEW EVIDENCE
+
+${evidenceText}
+
+Return ONLY valid JSON.
+
+Use exactly this structure:
+
+{
+  "state": "short descriptive state",
+  "blocker": "current blocker after considering the evidence",
+  "nextAction": "single most useful next action",
+  "reason": "brief explanation of why the evidence supports this state"
+}
+
+Rules:
+
+1. Do not invent facts.
+2. Use only the current case and new evidence.
+3. If the evidence does not justify a meaningful state change,
+   you may keep the existing state.
+4. The state should describe the CURRENT situation, not the goal.
+5. Keep the state concise.
+6. Keep the blocker concise and specific.
+7. nextAction must be concrete and actionable.
+8. reason must explain the connection between the new evidence
+   and the resulting state.
+9. Do not include markdown.
+10. Do not include additional fields.
+`;
+
+    const response = await anna.runtime.call(
+      "llm",
+      "complete",
+      {
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a precise case-state transition engine. Return only valid JSON."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        maxTokens: 500
+      }
+    );
+
+    const rawText =
+      response?.content?.text ||
+      response?.text ||
+      "";
+
+    if (!rawText) {
+      throw new Error(
+        "Anna returned an empty AI response."
+      );
+    }
+
+    let parsed;
+
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      const match = rawText.match(/\{[\s\S]*\}/);
+
+      if (!match) {
+        throw new Error(
+          "Anna returned an invalid transition response."
+        );
+      }
+
+      parsed = JSON.parse(match[0]);
+    }
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !parsed.state ||
+      !parsed.blocker ||
+      !parsed.nextAction ||
+      !parsed.reason
+    ) {
+      throw new Error(
+        "Anna returned an incomplete case transition."
+      );
+    }
+
+    return {
+      state: String(parsed.state).trim(),
+      blocker: String(parsed.blocker).trim(),
+      nextAction: String(parsed.nextAction).trim(),
+      reason: String(parsed.reason).trim()
+    };
+  }
+
+  function showDashboard() {
+    currentCaseId = null;
+
+    renderCases(cases);
+
+    status.textContent = cases.length
+      ? `${cases.length} case${cases.length === 1 ? "" : "s"} loaded.`
+      : "Ready. Create your first case.";
+  }
+
+  function showCaseDefinitionForm() {
+    const caseItem = getCurrentCase();
+
+    if (!caseItem) {
+      showDashboard();
+      return;
+    }
+
+    casesContainer.innerHTML = `
+      <div class="case-detail">
+
+        <div class="case-detail-header">
+          <button
+            id="cancel-case-definition"
+            class="secondary-btn"
+            type="button"
+          >
+            ← Back to Case
+          </button>
+        </div>
+
+        <div class="case-detail-title">
+          <div class="case-state">
+            DEFINE CASE
+          </div>
+
+          <h2>Make the situation clear.</h2>
+
+          <p>
+            Give CASEFLOW enough context to understand what is happening,
+            what is blocking progress, and what should happen next.
+          </p>
+        </div>
+
+        <div class="case-definition-form">
+
+          <div class="form-field">
+            <label for="case-title-input">
+              CASE / SITUATION
+            </label>
+
+            <input
+              id="case-title-input"
+              class="case-input"
+              type="text"
+              maxlength="200"
+              value="${escapeHtml(
+                caseItem.title === "Untitled situation"
+                  ? ""
+                  : caseItem.title
+              )}"
+              placeholder="Example: Launch my SaaS product"
+              autofocus
+            />
+
+            <div class="form-help">
+              What situation are you trying to move forward?
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="case-blocker-input">
+              CURRENT BLOCKER
+            </label>
+
+            <textarea
+              id="case-blocker-input"
+              class="case-input"
+              rows="4"
+              maxlength="1000"
+              placeholder="Example: I don't know which customer segment will actually pay."
+            >${escapeHtml(
+              caseItem.blocker === "Not yet defined"
+                ? ""
+                : caseItem.blocker
+            )}</textarea>
+
+            <div class="form-help">
+              What is currently preventing progress?
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="case-next-action-input">
+              NEXT ACTION
+            </label>
+
+            <textarea
+              id="case-next-action-input"
+              class="case-input"
+              rows="4"
+              maxlength="1000"
+              placeholder="Example: Interview 5 potential customers from two different segments."
+            >${escapeHtml(
+              caseItem.nextAction ===
+                "Describe the situation you want to solve."
+                ? ""
+                : caseItem.nextAction
+            )}</textarea>
+
+            <div class="form-help">
+              What is the most useful next step right now?
+            </div>
+          </div>
+
+          <div class="case-definition-actions">
+
+            <button
+              id="cancel-case-definition-2"
+              class="secondary-btn"
+              type="button"
+            >
+              Cancel
+            </button>
+
+            <button
+              id="save-case-definition"
+              class="primary-btn"
+              type="button"
+            >
+              Save Case
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+    const titleInput =
+      document.getElementById("case-title-input");
+
+    const blockerInput =
+      document.getElementById("case-blocker-input");
+
+    const nextActionInput =
+      document.getElementById("case-next-action-input");
+
+    const saveBtn =
+      document.getElementById("save-case-definition");
+
+    const cancelBtn =
+      document.getElementById("cancel-case-definition");
+
+    const cancelBtn2 =
+      document.getElementById("cancel-case-definition-2");
+
+    function cancel() {
+      showCaseDetail(caseItem);
+    }
+
+    cancelBtn?.addEventListener("click", cancel);
+    cancelBtn2?.addEventListener("click", cancel);
+
+    saveBtn?.addEventListener("click", async () => {
+      const title = titleInput?.value?.trim();
+      const blocker = blockerInput?.value?.trim();
+      const nextAction = nextActionInput?.value?.trim();
+
+      if (!title) {
+        status.textContent =
+          "Give this case a name or situation first.";
+        titleInput?.focus();
+        return;
+      }
+
+      if (!blocker) {
+        status.textContent =
+          "Define what is currently blocking progress.";
+        blockerInput?.focus();
+        return;
+      }
+
+      if (!nextAction) {
+        status.textContent =
+          "Define the next useful action.";
+        nextActionInput?.focus();
+        return;
+      }
+
+      saveBtn.disabled = true;
+      cancelBtn.disabled = true;
+      cancelBtn2.disabled = true;
+
+      status.textContent = "Saving case definition...";
+
+      try {
+        const now = new Date().toISOString();
+
+        const titleChanged =
+          caseItem.title !== title;
+
+        const blockerChanged =
+          caseItem.blocker !== blocker;
+
+        const nextActionChanged =
+          caseItem.nextAction !== nextAction;
+
+        caseItem.title = title;
+        caseItem.blocker = blocker;
+        caseItem.nextAction = nextAction;
+        caseItem.updatedAt = now;
+
+        if (!Array.isArray(caseItem.history)) {
+          caseItem.history = [];
+        }
+
+        if (
+          titleChanged ||
+          blockerChanged ||
+          nextActionChanged
+        ) {
+          caseItem.history.push({
+            type: "case_defined",
+            timestamp: now,
+            note: "Case definition updated."
+          });
+        }
+
+        const index = cases.findIndex(
+          (item) => item.id === caseItem.id
+        );
+
+        if (index !== -1) {
+          cases[index] = caseItem;
+        }
+
+        await saveCases();
+
+        showCaseDetail(caseItem);
+
+        status.textContent =
+          "Case saved. CASEFLOW now has a clear working context.";
+      } catch (error) {
+        status.textContent =
+          "Could not save case: " +
+          (error?.message || error);
+
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+        cancelBtn2.disabled = false;
+      }
+    });
+
+    titleInput?.addEventListener("keydown", (event) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key === "Enter"
+      ) {
+        event.preventDefault();
+        saveBtn?.click();
+      }
+    });
+  }
+
+  function showEvidenceForm() {
+    const caseItem = getCurrentCase();
+
+    if (!caseItem) {
+      showDashboard();
+      return;
+    }
+
+    const evidenceContainer =
+      document.getElementById("evidence-container");
+
+    if (!evidenceContainer) return;
+
+    evidenceContainer.innerHTML = `
+      <div class="evidence-form">
+
+        <div class="evidence-form-label">
+          WHAT CHANGED?
+        </div>
+
+        <textarea
+          id="evidence-input"
+          class="evidence-input"
+          rows="5"
+          maxlength="2000"
+          placeholder="Describe something you learned, observed, tested, discovered, or confirmed..."
+          autofocus
+        ></textarea>
+
+        <div class="evidence-form-footer">
+
+          <div class="evidence-helper">
+            This becomes part of the permanent case history.
+          </div>
+
+          <div class="evidence-form-actions">
+
+            <button
+              id="cancel-evidence-btn"
+              class="secondary-btn"
+              type="button"
+            >
+              Cancel
+            </button>
+
+            <button
+              id="save-evidence-btn"
+              class="primary-btn"
+              type="button"
+            >
+              Save Evidence
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+    const input =
+      document.getElementById("evidence-input");
+
+    const saveBtn =
+      document.getElementById("save-evidence-btn");
+
+    const cancelBtn =
+      document.getElementById("cancel-evidence-btn");
+
+    cancelBtn?.addEventListener("click", () => {
+      showCaseDetail(caseItem);
+    });
+
+    saveBtn?.addEventListener("click", async () => {
+      const text = input?.value?.trim();
+
+      if (!text) {
+        status.textContent =
+          "Add some evidence before saving.";
+        input?.focus();
+        return;
+      }
+
+      saveBtn.disabled = true;
+      cancelBtn.disabled = true;
+
+      status.textContent =
+        "Saving evidence and analyzing what changed...";
+
+      try {
+        const now = new Date().toISOString();
+
+        if (!Array.isArray(caseItem.evidence)) {
+          caseItem.evidence = [];
+        }
+
+        if (!Array.isArray(caseItem.history)) {
+          caseItem.history = [];
+        }
+
+        /*
+         * Save the raw evidence first.
+         */
+        const evidenceId =
+          crypto.randomUUID();
+
+        caseItem.evidence.push({
+          id: evidenceId,
+          text,
+          timestamp: now
+        });
+
+        caseItem.history.push({
+          type: "evidence_added",
+          timestamp: now,
+          note: "New evidence added."
+        });
+
+        caseItem.updatedAt = now;
+
+        /*
+         * Ask Anna to interpret the new evidence.
+         */
+        status.textContent =
+          "Anna is analyzing the case transition...";
+
+        const previousState =
+          caseItem.state;
+
+        const previousBlocker =
+          caseItem.blocker;
+
+        const previousNextAction =
+          caseItem.nextAction;
+
+        const transition =
+          await analyzeEvidence(
+            caseItem,
+            text
+          );
+
+        /*
+         * Apply the validated AI result.
+         */
+        caseItem.state =
+          transition.state;
+
+        caseItem.blocker =
+          transition.blocker;
+
+        caseItem.nextAction =
+          transition.nextAction;
+
+        caseItem.updatedAt =
+          new Date().toISOString();
+
+        /*
+         * Record the transition as an auditable event.
+         */
+        caseItem.history.push({
+          type: "state_transition",
+          timestamp: caseItem.updatedAt,
+
+          previousState,
+          newState: transition.state,
+
+          previousBlocker,
+          newBlocker: transition.blocker,
+
+          previousNextAction,
+          newNextAction: transition.nextAction,
+
+          reason: transition.reason,
+
+          note:
+            `Case state updated from "${previousState}" to "${transition.state}".`
+        });
+
+        const index = cases.findIndex(
+          (item) => item.id === caseItem.id
+        );
+
+        if (index !== -1) {
+          cases[index] = caseItem;
+        }
+
+        /*
+         * Persist the complete evolved case.
+         */
+        await saveCases();
+
+        showCaseDetail(caseItem);
+
+        status.textContent =
+          "Evidence saved. CASEFLOW updated the case state and next action.";
+
+      } catch (error) {
+
+        /*
+         * Evidence itself has already been added.
+         * If AI analysis fails, preserve the evidence and
+         * do NOT invent a state transition.
+         */
+        try {
+          const index = cases.findIndex(
+            (item) => item.id === caseItem.id
+          );
+
+          if (index !== -1) {
+            cases[index] = caseItem;
+          }
+
+          await saveCases();
+        } catch {
+          // Preserve the original error message below.
+        }
+
+        showCaseDetail(caseItem);
+
+        status.textContent =
+          "Evidence was saved, but AI analysis failed: " +
+          (error?.message || error);
+
+      } finally {
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+      }
+    });
+
+    input?.addEventListener("keydown", (event) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key === "Enter"
+      ) {
+        event.preventDefault();
+        saveBtn?.click();
+      }
+    });
+
+    status.textContent =
+      "Add what changed in this case.";
+  }
+
+  function showCaseDetail(caseItem) {
+    if (!caseItem) {
+      showDashboard();
+      return;
+    }
+
+    currentCaseId = caseItem.id;
+
+    casesContainer.innerHTML = `
+      <div class="case-detail">
+
+        <div class="case-detail-header">
+
+          <button
+            id="back-to-cases"
+            class="secondary-btn"
+            type="button"
+          >
+            ← All Cases
+          </button>
+
+          <div class="case-detail-actions">
+
+            <button
+              id="edit-case-btn"
+              class="secondary-btn"
+              type="button"
+            >
+              Edit Case
+            </button>
+
+            <div class="case-detail-updated">
+              Updated ${escapeHtml(
+                formatDate(caseItem.updatedAt)
+              )}
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="case-detail-title">
+
+          <div class="case-state">
+            ${escapeHtml(caseItem.state)}
+          </div>
+
+          <h2>${escapeHtml(caseItem.title)}</h2>
+
+          <p>
+            This case is a living record of the situation,
+            what is blocking it, and what should happen next.
+          </p>
+
+        </div>
+
+        <div class="case-detail-grid">
+
+          <section class="detail-panel">
+
+            <div class="detail-label">
+              CURRENT STATE
+            </div>
+
+            <div class="detail-value state-value">
+              ${escapeHtml(caseItem.state)}
+            </div>
+
+          </section>
+
+          <section class="detail-panel">
+
+            <div class="detail-label">
+              BLOCKER
+            </div>
+
+            <div class="detail-value">
+              ${escapeHtml(caseItem.blocker)}
+            </div>
+
+          </section>
+
+          <section class="detail-panel next-action-panel">
+
+            <div class="detail-label">
+              NEXT ACTION
+            </div>
+
+            <div class="detail-value">
+              ${escapeHtml(caseItem.nextAction)}
+            </div>
+
+          </section>
+
+        </div>
+
+        <section class="detail-section">
+
+          <div class="detail-section-header">
+
+            <div>
+              <div class="section-label">
+                EVIDENCE
+              </div>
+
+              <p class="section-description">
+                New information that may change the state of this case.
+              </p>
+            </div>
+
+            <button
+              id="add-evidence-btn"
+              class="primary-btn"
+              type="button"
+            >
+              + Add Evidence
+            </button>
+
+          </div>
+
+          <div id="evidence-container">
+            ${renderEvidence(caseItem)}
+          </div>
+
+        </section>
+
+        <section class="detail-section">
+
+          <div class="section-label">
+            HISTORY
+          </div>
+
+          <div class="history-list">
+            ${renderHistory(caseItem)}
+          </div>
+
+        </section>
+
+      </div>
+    `;
+
+    document
+      .getElementById("back-to-cases")
+      ?.addEventListener(
+        "click",
+        showDashboard
+      );
+
+    document
+      .getElementById("edit-case-btn")
+      ?.addEventListener(
+        "click",
+        showCaseDefinitionForm
+      );
+
+    document
+      .getElementById("add-evidence-btn")
+      ?.addEventListener(
+        "click",
+        showEvidenceForm
+      );
+
+    status.textContent =
+      `Viewing: ${caseItem.title}`;
+  }
+
+  function renderEvidence(caseItem) {
+    const evidence = Array.isArray(
+      caseItem.evidence
+    )
+      ? caseItem.evidence
+      : [];
+
+    if (!evidence.length) {
+      return `
+        <div class="empty-detail-state">
+
+          <strong>
+            No evidence added yet.
+          </strong>
+
+          <span>
+            Add something you learned, observed, tested, or discovered.
+          </span>
+
+        </div>
+      `;
+    }
+
+    return `
+      <div class="evidence-list">
+
+        ${evidence
+          .slice()
+          .reverse()
+          .map(
+            (item) => `
+              <article class="evidence-card">
+
+                <div class="evidence-meta">
+                  ${escapeHtml(
+                    formatDateTime(item.timestamp)
+                  )}
+                </div>
+
+                <div class="evidence-text">
+                  ${escapeHtml(item.text)}
+                </div>
+
+              </article>
+            `
+          )
+          .join("")}
+
+      </div>
+    `;
+  }
+
+  function renderHistory(caseItem) {
+    const history = Array.isArray(
+      caseItem.history
+    )
+      ? caseItem.history
+      : [];
+
+    if (!history.length) {
+      return `
+        <div class="empty-detail-state">
+          No history yet.
+        </div>
+      `;
+    }
+
+    return history
+      .slice()
+      .reverse()
+      .map(
+        (item) => {
+
+          const transitionReason =
+            item.type === "state_transition" &&
+            item.reason
+              ? `
+                <div class="history-reason">
+                  ${escapeHtml(item.reason)}
+                </div>
+              `
+              : "";
+
+          const transitionDetails =
+            item.type === "state_transition"
+              ? `
+                <div class="history-transition">
+
+                  <div>
+                    <span>State</span>
+                    ${escapeHtml(
+                      item.previousState || "Unknown"
+                    )}
+                    →
+                    ${escapeHtml(
+                      item.newState || "Unknown"
+                    )}
+                  </div>
+
+                  <div>
+                    <span>Next action</span>
+                    ${escapeHtml(
+                      item.newNextAction || ""
+                    )}
+                  </div>
+
+                </div>
+              `
+              : "";
+
+          return `
+            <div class="history-item">
+
+              <div class="history-marker"></div>
+
+              <div class="history-content">
+
+                <div class="history-note">
+                  ${escapeHtml(
+                    item.note || "Case updated."
+                  )}
+                </div>
+
+                ${transitionDetails}
+
+                ${transitionReason}
+
+                <div class="history-time">
+                  ${escapeHtml(
+                    formatDateTime(item.timestamp)
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+          `;
+        }
+      )
+      .join("");
+  }
+
+  function renderCases(caseList) {
+    if (!caseList.length) {
+      casesContainer.innerHTML = `
+        <div class="empty-state">
+
+          <div class="empty-icon">
+            →
+          </div>
+
+          <h2>
+            No cases yet
+          </h2>
+
+          <p>
+            Start with something real you're trying to solve.
+            CASEFLOW will keep the situation structured as it evolves.
+          </p>
+
+          <button
+            id="empty-primary-btn"
+            class="primary-btn"
+            type="button"
+          >
+            Create your first case
+          </button>
+
+        </div>
+      `;
+
+      document
+        .getElementById("empty-primary-btn")
+        ?.addEventListener(
+          "click",
+          createCase
+        );
+
+      return;
+    }
+
+    casesContainer.innerHTML = `
+      <div class="cases-grid">
+
+        ${caseList
+          .map(
+            (item) => `
+              <article class="case-card">
+
+                <div class="case-card-top">
+
+                  <div class="case-state">
+                    ${escapeHtml(item.state)}
+                  </div>
+
+                  <span class="case-date">
+                    ${escapeHtml(
+                      formatDate(item.updatedAt)
+                    )}
+                  </span>
+
+                </div>
+
+                <h3>
+                  ${escapeHtml(item.title)}
+                </h3>
+
+                <div class="case-row">
+
+                  <div class="case-row-label">
+                    Blocker
+                  </div>
+
+                  <div class="case-row-value">
+                    ${escapeHtml(item.blocker)}
+                  </div>
+
+                </div>
+
+                <div class="case-row">
+
+                  <div class="case-row-label">
+                    Next action
+                  </div>
+
+                  <div class="case-row-value">
+                    ${escapeHtml(item.nextAction)}
+                  </div>
+
+                </div>
+
+                <button
+                  class="open-case-btn"
+                  type="button"
+                  data-case-id="${escapeHtml(item.id)}"
+                >
+                  Open Case →
+                </button>
+
+              </article>
+            `
+          )
+          .join("")}
+
+      </div>
+    `;
+
+    document
+      .querySelectorAll(".open-case-btn")
+      .forEach((button) => {
+        button.addEventListener("click", () => {
+
+          const selected = cases.find(
+            (item) =>
+              item.id === button.dataset.caseId
+          );
+
+          showCaseDetail(selected);
+        });
+      });
+  }
+
+  async function loadCases() {
+    try {
+      const result =
+        await anna.storage.get({
+          key: STORAGE_KEY
+        });
+
+      cases = Array.isArray(result?.value)
+        ? result.value
+        : [];
+
+      renderCases(cases);
+
+      status.textContent = cases.length
+        ? `${cases.length} case${
+            cases.length === 1 ? "" : "s"
+          } loaded.`
+        : "Ready. Create your first case.";
+
+      return cases;
+
+    } catch (error) {
+
+      status.textContent =
+        "Could not load cases: " +
+        (error?.message || error);
+
+      cases = [];
+
+      return [];
+    }
+  }
+
+  async function createCase() {
+    if (!anna) {
+      status.textContent =
+        "CASEFLOW must be opened inside Anna.";
+      return;
+    }
+
+    primaryBtn.disabled = true;
+
+    status.textContent =
+      "Creating your case...";
+
+    try {
+      const existingResult =
+        await anna.storage.get({
+          key: STORAGE_KEY
+        });
+
+      cases = Array.isArray(
+        existingResult?.value
+      )
+        ? existingResult.value
+        : [];
+
+      const now =
+        new Date().toISOString();
+
+      const newCase = {
+        id: crypto.randomUUID(),
+
+        title:
+          "Untitled situation",
+
+        state:
+          "NEW",
+
+        blocker:
+          "Not yet defined",
+
+        nextAction:
+          "Describe the situation you want to solve.",
+
+        evidence: [],
+
+        history: [
+          {
+            type: "created",
+            timestamp: now,
+            note: "Case created."
+          }
+        ],
+
+        createdAt: now,
+        updatedAt: now
+      };
+
+      cases.unshift(newCase);
+
+      await saveCases();
+
+      showCaseDetail(newCase);
+
+      status.textContent =
+        "Case created. Define the situation and add evidence as it evolves.";
+
+    } catch (error) {
+
+      status.textContent =
+        "Could not create case: " +
+        (error?.message || error);
+
+    } finally {
+      primaryBtn.disabled = false;
+    }
+  }
+
+  try {
+    anna =
+      await AnnaAppRuntime.connect();
+
+    await anna.window.set_title({
+      title: "CASEFLOW"
+    });
+
+    await anna.window.ready();
+
+    setRuntimeState(true);
+
+    status.textContent =
+      "CASEFLOW ready.";
+
+    await loadCases();
+
+  } catch (error) {
+
+    setRuntimeState(false);
+
+    status.textContent =
+      "Open this app inside Anna to use CASEFLOW.";
+
+    return;
+  }
+
+  primaryBtn.addEventListener(
+    "click",
+    createCase
+  );
+}
+
+main();

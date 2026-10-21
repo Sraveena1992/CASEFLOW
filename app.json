@@ -1,0 +1,12 @@
+{
+    "name":  "CASEFLOW",
+    "tagline":  "Turn messy situations into clear states, decisions, and next actions.",
+    "description":  "CASEFLOW helps users manage complex, evolving situations as structured cases. Capture evidence, track blockers, review state changes, and identify the next practical action.",
+    "category":  "productivity",
+    "bundled_executas":  {
+                             "caseflow":  {
+                                              "path":  "./executas/caseflow"
+                                          }
+                         },
+    "slug":  "caseflow"
+}
