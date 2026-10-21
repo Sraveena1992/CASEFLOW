@@ -176,6 +176,59 @@ function injectStyles() {
     .cf-history-type{color:#5546c9;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
     .cf-footer-note{margin-top:24px;color:#7a8496;font-size:11px;line-height:1.7}
     @media(max-width:650px){.cf-stats{grid-template-columns:1fr}.cf-case-list,.cf-detail-grid{grid-template-columns:1fr}.cf-page{padding-left:0;padding-right:0}}
+
+    /* Premium CASEFLOW visual system */
+    .cf-page { max-width: 1160px; padding: 8px 0 46px; color: #17233f; }
+    .cf-eyebrow { color: #6b5ce7; letter-spacing: 2px; }
+    .cf-title { color: #17233f; font-size: clamp(29px, 4vw, 42px); letter-spacing: -1.5px; }
+    .cf-subtitle { color: #69758e; font-size: 14px; max-width: 720px; }
+    .cf-topline { margin-bottom: 26px; }
+    .cf-button { border-color: #e1e5f1; border-radius: 12px; padding: 11px 16px; color: #33405d; background: rgba(255,255,255,.92); box-shadow: 0 2px 5px rgba(25,35,75,.025); }
+    .cf-button:hover { border-color: #b9b0ff; box-shadow: 0 8px 20px rgba(47,43,105,.08); }
+    .cf-button-primary { color: #fff; background: linear-gradient(135deg,#7668f2,#5546d8); border-color: transparent; box-shadow: 0 8px 20px rgba(94,77,220,.22); }
+    .cf-button-primary:hover { background: linear-gradient(135deg,#6e60ec,#4e40cd); box-shadow: 0 10px 24px rgba(94,77,220,.3); }
+    .cf-button-danger { color: #a33c53; background: #fff8fa; border-color: #f1d6df; }
+    .cf-stats { gap: 16px; margin: 28px 0 34px; }
+    .cf-stat { position: relative; overflow: hidden; border: 1px solid #e6e9f5; border-radius: 18px; padding: 22px; background: linear-gradient(145deg,rgba(255,255,255,.98),rgba(249,249,255,.92)); box-shadow: 0 10px 30px rgba(33,43,88,.045); }
+    .cf-stat:after { content: ""; position: absolute; right: -20px; top: -26px; width: 88px; height: 88px; border-radius: 50%; background: rgba(111,94,240,.07); }
+    .cf-stat-label { color: #78829c; font-weight: 650; }
+    .cf-stat-number { color: #25274f; font-size: 32px; letter-spacing: -1px; }
+    .cf-section-heading { margin: 32px 0 16px; }
+    .cf-section-heading h2 { color: #202b49; font-size: 18px; letter-spacing: -.35px; }
+    .cf-case-list { gap: 16px; }
+    .cf-card, .cf-list-item, .cf-empty { border-color: #e5e9f4; border-radius: 17px; background: rgba(255,255,255,.93); box-shadow: 0 8px 24px rgba(34,43,87,.035); }
+    .cf-case-card { padding: 21px; gap: 13px; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .cf-case-card:hover { border-color: #b7afff; transform: translateY(-2px); box-shadow: 0 15px 32px rgba(46,43,112,.09); }
+    .cf-case-card h3 { color: #202b49; font-size: 17px; letter-spacing: -.25px; }
+    .cf-state { padding: 6px 10px; background: #efedff; color: #5a4bd5; border: 1px solid #e2ddff; letter-spacing: .04em; }
+    .cf-muted { color: #78829a; }
+    .cf-detail-grid { gap: 16px; margin: 24px 0; }
+    .cf-detail-grid .cf-card { padding: 22px; }
+    .cf-card h3 { color: #4c5672; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; }
+    .cf-card p { color: #293653; font-size: 14px; line-height: 1.8; }
+    .cf-form { gap: 19px; margin-top: 26px; }
+    .cf-field label { color: #35415f; font-size: 13px; }
+    .cf-field input, .cf-field textarea { border-color: #dfe4f1; border-radius: 12px; padding: 13px 14px; background: #fff; box-shadow: inset 0 1px 2px rgba(28,38,80,.02); }
+    .cf-field input:focus, .cf-field textarea:focus { border-color: #897cff; box-shadow: 0 0 0 4px rgba(117,102,242,.11); }
+    .cf-field .cf-help { color: #828ba1; }
+    .cf-empty { padding: 40px 22px; border-style: dashed; }
+    .cf-empty h3 { color: #252e4b; }
+    .cf-list { gap: 12px; }
+    .cf-list-item { padding: 17px; }
+    .cf-divider { background: #e8ebf5; }
+    .cf-notice { border-radius: 13px; box-shadow: 0 5px 18px rgba(33,43,88,.035); }
+    .cf-pending { margin-top: 24px; border: 1px solid #d8d1ff; border-radius: 18px; padding: 22px; background: linear-gradient(145deg,#fbfaff,#f5f3ff); box-shadow: 0 10px 28px rgba(79,65,185,.07); }
+    .cf-pending h3 { color: #25274f; }
+    .cf-pending .cf-card { background: #fff; }
+    .cf-history-type { color: #6656df; }
+    .cf-footer-note { color: #858da3; border-top: 1px solid #e7eaf4; padding-top: 15px; }
+    @media(max-width:650px) {
+      .cf-stats { grid-template-columns: 1fr; }
+      .cf-case-list, .cf-detail-grid { grid-template-columns: 1fr; }
+      .cf-page { padding-left: 0; padding-right: 0; }
+      .cf-topline { align-items: flex-start; }
+      .cf-stat { padding: 18px; }
+    }
   `;
 
   document.head.appendChild(style);
