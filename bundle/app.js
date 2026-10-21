@@ -1,13 +1,6 @@
 const STORAGE_KEY = "caseflow:cases";
-
 const INITIAL_STATE = "NEW";
-
-const TRANSITION_FIELDS = [
-  "state",
-  "blocker",
-  "nextAction",
-  "reason"
-];
+const TRANSITION_FIELDS = ["state", "blocker", "nextAction", "reason"];
 
 const state = {
   anna: null,
@@ -21,794 +14,48 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (character) => {
-    const entities = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    };
-
-    return entities[character];
-  });
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[ch]));
 }
 
-function formatDate(value) {
+function formatDate(value, withTime = false) {
   if (!value) return "Not recorded";
-
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return "Not recorded";
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
+  return date.toLocaleString(undefined, withTime
+    ? { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+    : { year: "numeric", month: "short", day: "numeric" });
 }
 
-function formatDateTime(value) {
-  if (!value) return "Not recorded";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "Not recorded";
-
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+function makeId() {
+  return globalThis.crypto?.randomUUID?.()
+    || `cf-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function getCurrentCase() {
-  return state.cases.find(
-    (item) => item.id === state.activeCaseId
-  ) ?? null;
+  return state.cases.find((item) => item.id === state.activeCaseId) || null;
 }
 
 function setRuntimeState(message, status = "ready") {
   const statusElement = $("status");
-  const runtimeLabel = $("runtime-label");
-  const statusDot = $("status-dot");
+  const label = $("runtime-label");
+  const dot = $("status-dot");
 
-  if (statusElement) {
-    statusElement.textContent = message;
+  if (statusElement) statusElement.textContent = message;
+
+  if (label) {
+    label.textContent = status === "connected" ? "Anna AI connected"
+      : status === "error" ? "Local mode"
+      : status === "working" ? "Processing"
+      : "CASEFLOW";
   }
 
-  if (runtimeLabel) {
-    runtimeLabel.textContent =
-      status === "connected"
-        ? "Anna AI connected"
-        : status === "error"
-          ? "Local mode"
-          : status === "working"
-            ? "Processing"
-            : "CASEFLOW";
-  }
-
-  if (statusDot) {
-    statusDot.dataset.status = status;
-  }
-}
-
-function saveCases() {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(state.cases)
-    );
-
-    return true;
-  } catch (error) {
-    console.error("CASEFLOW: Could not save cases.", error);
-    setRuntimeState(
-      "Could not save changes in this browser.",
-      "error"
-    );
-    return false;
-  }
-}
-
-function loadCases() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-
-    if (!stored) {
-      state.cases = [];
-      return;
-    }
-
-    const parsed = JSON.parse(stored);
-
-    state.cases = Array.isArray(parsed)
-      ? parsed.filter(
-          (item) =>
-            item &&
-            typeof item.id === "string" &&
-            typeof item.title === "string"
-        )
-      : [];
-  } catch (error) {
-    console.error("CASEFLOW: Could not load saved cases.", error);
-    state.cases = [];
-    setRuntimeState(
-      "Saved data could not be read. Starting with an empty list.",
-      "error"
-    );
-  }
-}
-
-function injectStyles() {
-  if ($("caseflow-dynamic-styles")) return;
-
-  const style = document.createElement("style");
-  style.id = "caseflow-dynamic-styles";
-
-  style.textContent = `
-    #cases-container {
-      width: 100%;
-      min-width: 0;
-    }
-
-    .cf-page {
-      width: 100%;
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 8px 0 40px;
-      color: var(--text, #e9edf5);
-      font-family: inherit;
-    }
-
-    .cf-topline {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .cf-eyebrow {
-      margin: 0 0 8px;
-      color: var(--muted, #929bad);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 1.8px;
-      text-transform: uppercase;
-    }
-
-    .cf-title {
-      margin: 0;
-      font-size: clamp(25px, 4vw, 36px);
-      font-weight: 800;
-      letter-spacing: -1px;
-      line-height: 1.15;
-    }
-
-    .cf-subtitle {
-      margin: 10px 0 0;
-      color: var(--muted, #929bad);
-      font-size: 14px;
-      line-height: 1.65;
-      max-width: 680px;
-    }
-
-    .cf-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border: 1px solid var(--border, #343b4a);
-      border-radius: 10px;
-      padding: 10px 15px;
-      background: var(--surface, #171c27);
-      color: var(--text, #e9edf5);
-      font: inherit;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: none;
-      transition: opacity .15s ease, transform .15s ease;
-    }
-
-    .cf-button:hover {
-      opacity: .88;
-      transform: translateY(-1px);
-    }
-
-    .cf-button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .cf-button-primary {
-      color: white;
-      background: #6255e7;
-      border-color: #6255e7;
-    }
-
-    .cf-button-danger {
-      color: #ffb7b7;
-      border-color: #6d343d;
-    }
-
-    .cf-button-small {
-      padding: 7px 10px;
-      font-size: 12px;
-    }
-
-    .cf-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin: 22px 0;
-    }
-
-    .cf-stat, .cf-card {
-      min-width: 0;
-      border: 1px solid var(--border, #303746);
-      border-radius: 14px;
-      background: var(--surface, #171c27);
-      padding: 18px;
-    }
-
-    .cf-stat-label {
-      color: var(--muted, #929bad);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .cf-stat-number {
-      margin-top: 8px;
-      font-size: 27px;
-      font-weight: 800;
-    }
-
-    .cf-section-heading {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin: 28px 0 14px;
-    }
-
-    .cf-section-heading h2 {
-      margin: 0;
-      font-size: 17px;
-      font-weight: 750;
-    }
-
-    .cf-muted {
-      color: var(--muted, #929bad);
-      font-size: 12px;
-      line-height: 1.65;
-    }
-
-    .cf-case-list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .cf-case-card {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 14px;
-      width: 100%;
-      text-align: left;
-      color: inherit;
-      font: inherit;
-      cursor: pointer;
-    }
-
-    .cf-case-card:hover {
-      border-color: #6255e7;
-    }
-
-    .cf-case-card h3 {
-      margin: 0;
-      font-size: 16px;
-      line-height: 1.5;
-      overflow-wrap: anywhere;
-    }
-
-    .cf-state {
-      display: inline-flex;
-      align-self: flex-start;
-      max-width: 100%;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: rgba(98, 85, 231, .14);
-      color: #bdb6ff;
-      font-size: 11px;
-      font-weight: 800;
-      overflow-wrap: anywhere;
-    }
-
-    .cf-detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-      margin: 20px 0;
-    }
-
-    .cf-detail-grid .cf-card {
-      overflow-wrap: anywhere;
-    }
-
-    .cf-card h3 {
-      margin: 0 0 12px;
-      font-size: 14px;
-    }
-
-    .cf-card p {
-      margin: 0;
-      line-height: 1.7;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-    }
-
-    .cf-form {
-      display: grid;
-      gap: 16px;
-      margin-top: 22px;
-    }
-
-    .cf-field {
-      display: grid;
-      gap: 7px;
-    }
-
-    .cf-field label {
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .cf-field input, .cf-field textarea {
-      box-sizing: border-box;
-      width: 100%;
-      min-width: 0;
-      border: 1px solid var(--border, #343b4a);
-      border-radius: 10px;
-      padding: 12px;
-      color: var(--text, #e9edf5);
-      background: var(--surface, #171c27);
-      font: inherit;
-      font-size: 14px;
-      outline: none;
-    }
-
-    .cf-field input:focus, .cf-field textarea:focus {
-      border-color: #8175ff;
-    }
-
-    .cf-field textarea {
-      min-height: 125px;
-      resize: vertical;
-      line-height: 1.6;
-    }
-
-    .cf-field .cf-help {
-      color: var(--muted, #929bad);
-      font-size: 12px;
-      line-height: 1.6;
-    }
-
-    .cf-form-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 2px;
-    }
-
-    .cf-empty {
-      padding: 32px 18px;
-      text-align: center;
-      border: 1px dashed var(--border, #343b4a);
-      border-radius: 14px;
-    }
-
-    .cf-empty h3 {
-      margin: 0 0 8px;
-      font-size: 16px;
-    }
-
-    .cf-empty p {
-      max-width: 460px;
-      margin: 0 auto 18px;
-      color: var(--muted, #929bad);
-      font-size: 13px;
-      line-height: 1.7;
-    }
-
-    .cf-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .cf-list-item {
-      min-width: 0;
-      border: 1px solid var(--border, #303746);
-      border-radius: 12px;
-      padding: 14px;
-      overflow-wrap: anywhere;
-    }
-
-    .cf-list-item p {
-      margin: 7px 0 0;
-      font-size: 13px;
-      line-height: 1.65;
-      white-space: pre-wrap;
-    }
-
-    .cf-list-item .cf-muted {
-      margin-top: 6px;
-    }
-
-    .cf-divider {
-      height: 1px;
-      margin: 18px 0;
-      background: var(--border, #303746);
-    }
-
-    .cf-notice {
-      margin: 14px 0;
-      padding: 13px 14px;
-      border: 1px solid var(--border, #343b4a);
-      border-radius: 10px;
-      font-size: 13px;
-      line-height: 1.7;
-      overflow-wrap: anywhere;
-    }
-
-    .cf-notice-warning {
-      border-color: #80652d;
-      background: rgba(191, 145, 41, .08);
-    }
-
-    .cf-notice-success {
-      border-color: #356b55;
-      background: rgba(45, 151, 100, .08);
-    }
-
-    .cf-notice-error {
-      border-color: #803d49;
-      background: rgba(184, 64, 83, .08);
-    }
-
-    .cf-pending {
-      margin-top: 20px;
-      border: 1px solid #7567e8;
-      border-radius: 14px;
-      padding: 18px;
-      background: rgba(98, 85, 231, .07);
-    }
-
-    .cf-pending h3 {
-      margin: 0 0 12px;
-      font-size: 16px;
-    }
-
-    .cf-pending .cf-card {
-      margin-top: 10px;
-      padding: 13px;
-    }
-
-    .cf-pending-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .cf-history-type {
-      color: #bdb6ff;
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-
-    .cf-footer-note {
-      margin-top: 24px;
-      color: var(--muted, #929bad);
-      font-size: 11px;
-      line-height: 1.7;
-    }
-
-    @media (max-width: 650px) {
-      .cf-stats {
-        grid-template-columns: 1fr;
-      }
-
-      .cf-case-list, .cf-detail-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .cf-page {
-        padding-left: 0;
-        padding-right: 0;
-      }
-    }
-  `;
-
-  document.head.appendChild(style);
-}
-
-function setBusy(value) {
-  state.busy = value;
-
-  const primaryButton = $("primary-btn");
-
-  if (primaryButton) {
-    primaryButton.disabled = value;
-  }
-
-  document
-    .querySelectorAll("[data-cf-action]")
-    .forEach((button) => {
-      if (
-        button.dataset.cfAction !== "back" &&
-        button.dataset.cfAction !== "open-case"
-      ) {
-        button.disabled = value;
-      }
-    });
-}
-
-function makeHistoryEntry(type, note, details = {}) {
-  return {
-    id: crypto.randomUUID(),
-    type,
-    timestamp: new Date().toISOString(),
-    note,
-    ...details
-  };
-}
-
-function updateCase(caseItem, updates) {
-  Object.assign(caseItem, updates, {
-    updatedAt: new Date().toISOString()
-  });
-}
-
-function createCase(title, situation) {
-  const now = new Date().toISOString();
-
-  const caseItem = {
-    id: crypto.randomUUID(),
-    title: title.trim(),
-    state: INITIAL_STATE,
-    situation: situation.trim(),
-    blocker: "Not yet assessed",
-    nextAction: "Review the situation and identify the next useful action.",
-    evidence: [],
-    history: [
-      makeHistoryEntry(
-        "created",
-        "Case created. Initial state recorded."
-      )
-    ],
-    createdAt: now,
-    updatedAt: now
-  };
-
-  state.cases.unshift(caseItem);
-  state.activeCaseId = caseItem.id;
-  state.currentView = "detail";
-
-  saveCases();
-  showCaseDetail();
-}
-
-function renderStats() {
-  const total = state.cases.length;
-  const blocked = state.cases.filter(
-    (item) =>
-      item.blocker &&
-      item.blocker !== "None recorded" &&
-      item.blocker !== "Not yet assessed"
-  ).length;
-
-  const evidenceCount = state.cases.reduce(
-    (sum, item) =>
-      sum + (Array.isArray(item.evidence) ? item.evidence.length : 0),
-    0
-  );
-
-  return `
-    <div class="cf-stats">
-      <div class="cf-stat">
-        <div class="cf-stat-label">Tracked cases</div>
-        <div class="cf-stat-number">${total}</div>
-      </div>
-      <div class="cf-stat">
-        <div class="cf-stat-label">Cases with a recorded blocker</div>
-        <div class="cf-stat-number">${blocked}</div>
-      </div>
-      <div class="cf-stat">
-        <div class="cf-stat-label">Evidence records</div>
-        <div class="cf-stat-number">${evidenceCount}</div>
-      </div>
-    </div>
-  `;
-}
-
-function renderCases() {
-  if (state.cases.length === 0) {
-    return `
-      <div class="cf-empty">
-        <h3>No cases yet</h3>
-        <p>
-          Create your first case to record the current situation,
-          identify blockers and track the next action as new evidence arrives.
-        </p>
-        <button class="cf-button cf-button-primary"
-          data-cf-action="new-case">
-          + Create your first case
-        </button>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="cf-case-list">
-      ${state.cases.map((item) => `
-        <button
-          type="button"
-          class="cf-card cf-case-card"
-          data-cf-action="open-case"
-          data-case-id="${escapeHtml(item.id)}"
-        >
-          <span class="cf-state">${escapeHtml(item.state)}</span>
-          <h3>${escapeHtml(item.title)}</h3>
-          <p class="cf-muted">
-            ${escapeHtml(item.nextAction || "No next action recorded.")}
-          </p>
-          <div class="cf-muted">
-            Updated ${escapeHtml(formatDate(item.updatedAt))}
-            | ${Array.isArray(item.evidence) ? item.evidence.length : 0}
-            evidence item(s)
-          </div>
-          <span class="cf-muted">Open case -&gt;</span>
-        </button>
-      `).join("")}
-    </div>
-  `;
-}
-
-function showDashboard() {
-  state.currentView = "dashboard";
-  state.pendingTransition = null;
-
-  const container = $("cases-container");
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="cf-page">
-      <div class="cf-topline">
-        <div>
-          <p class="cf-eyebrow">Case intelligence workspace</p>
-          <h1 class="cf-title">CASEFLOW</h1>
-          <p class="cf-subtitle">
-            Keep the current state, blocker, next action and supporting
-            evidence together. Review proposed changes before applying them.
-          </p>
-        </div>
-        <button class="cf-button cf-button-primary"
-          data-cf-action="new-case">
-          + New case
-        </button>
-      </div>
-
-      ${renderStats()}
-
-      <div class="cf-section-heading">
-        <h2>Your cases</h2>
-        <span class="cf-muted">${state.cases.length} total</span>
-      </div>
-
-      ${renderCases()}
-
-      <p class="cf-footer-note">
-        CASEFLOW stores case records in this browser. AI-generated
-        transitions are proposals and require your confirmation.
-        Browser storage is not a shared or server-side case database.
-      </p>
-    </div>
-  `;
-
-  const primaryButton = $("primary-btn");
-
-  if (primaryButton) {
-    primaryButton.textContent = "New case";
-    primaryButton.onclick = showCaseDefinitionForm;
-  }
-}
-
-function showCaseDefinitionForm() {
-  state.currentView = "new-case";
-  state.pendingTransition = null;
-
-  const container = $("cases-container");
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="cf-page">
-      <button class="cf-button" data-cf-action="back">
-        &lt;- All cases
-      </button>
-
-      <div style="margin-top:24px">
-        <p class="cf-eyebrow">Start tracking</p>
-        <h1 class="cf-title">Create a case</h1>
-        <p class="cf-subtitle">
-          Describe the real situation you need to move forward.
-          You can add evidence and refine the case as new information arrives.
-        </p>
-      </div>
-
-      <form id="cf-create-form" class="cf-form">
-        <div class="cf-field">
-          <label for="cf-title">Case title</label>
-          <input id="cf-title" name="title" maxlength="140"
-            placeholder="e.g. Vendor compliance review"
-            required />
-        </div>
-
-        <div class="cf-field">
-          <label for="cf-situation">Current situation</label>
-          <textarea id="cf-situation" name="situation"
-            maxlength="8000"
-            placeholder="What has happened so far? What is known, and what still needs to be resolved?"
-            required></textarea>
-          <span class="cf-help">
-            Record what is known. Avoid adding passwords, access tokens
-            or unnecessary sensitive personal information.
-          </span>
-        </div>
-
-        <div class="cf-form-actions">
-          <button type="submit" class="cf-button cf-button-primary">
-            Create case
-          </button>
-          <button type="button" class="cf-button"
-            data-cf-action="back">
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  `;
-
-  const form = $("cf-create-form");
-
-  form?.addEventListener("submit", (event) => {
-    event.preventDefault();
-
-    const title = $("cf-title")?.value.trim() ?? "";
-    const situation = $("cf-situation")?.value.trim() ?? "";
-
-    if (!title || !situation) {
-      showNotice("Please complete both fields.", "error");
-      return;
-    }
-
-    createCase(title, situation);
-  });
-
-  const primaryButton = $("primary-btn");
-
-  if (primaryButton) {
-    primaryButton.textContent = "All cases";
-    primaryButton.onclick = showDashboard;
+  if (dot) {
+    dot.dataset.status = status;
+    dot.style.background = status === "connected" ? "#24a06b"
+      : status === "error" ? "#c34b58"
+      : status === "working" ? "#d49b2a" : "#7c8798";
   }
 }
 
@@ -817,242 +64,317 @@ function showNotice(message, type = "warning") {
   if (!container) return;
 
   let notice = $("cf-global-notice");
-
   if (!notice) {
     notice = document.createElement("div");
     notice.id = "cf-global-notice";
-    notice.className = `cf-notice cf-notice-${type}`;
-    notice.setAttribute("role", "status");
     container.prepend(notice);
   }
 
   notice.className = `cf-notice cf-notice-${type}`;
+  notice.setAttribute("role", "status");
   notice.textContent = message;
 }
 
-function renderEvidence(caseItem) {
-  if (!caseItem.evidence?.length) {
-    return `
-      <div class="cf-empty">
-        <p>No evidence has been recorded for this case yet.</p>
-      </div>
-    `;
+function saveCases() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cases));
+    return true;
+  } catch (error) {
+    console.error("CASEFLOW: Could not save cases.", error);
+    setRuntimeState("Could not save changes in this browser.", "error");
+    showNotice("Browser storage failed. Your latest change may not persist after refresh.", "error");
+    return false;
   }
-
-  return `
-    <div class="cf-list">
-      ${caseItem.evidence.map((item) => `
-        <article class="cf-list-item">
-          <div class="cf-muted">
-            Added ${escapeHtml(formatDateTime(item.timestamp))}
-          </div>
-          <p>${escapeHtml(item.text)}</p>
-          <div class="cf-muted">
-            Analysis: ${escapeHtml(item.analysisStatus || "Not analyzed")}
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
 }
 
-function renderHistory(caseItem) {
-  if (!caseItem.history?.length) {
-    return `<p class="cf-muted">No history recorded yet.</p>`;
-  }
+function loadCases() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
 
-  return `
-    <div class="cf-list">
-      ${[...caseItem.history].reverse().map((entry) => `
-        <article class="cf-list-item">
-          <div class="cf-history-type">
-            ${escapeHtml(String(entry.type || "event").replace(/-/g, " "))}
-          </div>
-          <div class="cf-muted">
-            ${escapeHtml(formatDateTime(entry.timestamp))}
-          </div>
-          <p>${escapeHtml(entry.note || "")}</p>
-          ${entry.fromState || entry.toState ? `
-            <div class="cf-muted">
-              ${escapeHtml(entry.fromState || "-")}
-              ->${escapeHtml(entry.toState || "-")}
-            </div>
-          ` : ""}
-        </article>
-      `).join("")}
-    </div>
-  `;
+    state.cases = Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.title === "string")
+      : [];
+  } catch (error) {
+    console.error("CASEFLOW: Could not load saved cases.", error);
+    state.cases = [];
+    setRuntimeState("Saved data could not be read. Starting with an empty list.", "error");
+  }
 }
 
-function showCaseDetail() {
-  state.currentView = "detail";
-  const caseItem = getCurrentCase();
+function makeHistoryEntry(type, note, details = {}) {
+  return {
+    id: makeId(),
+    type,
+    timestamp: new Date().toISOString(),
+    note,
+    ...details
+  };
+}
+
+function updateCase(item, updates = {}) {
+  Object.assign(item, updates, { updatedAt: new Date().toISOString() });
+}
+
+function injectStyles() {
+  if ($("caseflow-dynamic-styles")) return;
+
+  const style = document.createElement("style");
+  style.id = "caseflow-dynamic-styles";
+  style.textContent = `
+    #cases-container{width:100%;min-width:0}
+    .cf-page{width:100%;max-width:1040px;margin:0 auto;padding:8px 0 40px;color:var(--text,#172033);font-family:inherit}
+    .cf-topline{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px}
+    .cf-eyebrow{margin:0 0 8px;color:#7a8496;font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}
+    .cf-title{margin:0;font-size:clamp(25px,4vw,36px);font-weight:800;letter-spacing:-1px;line-height:1.15;overflow-wrap:anywhere}
+    .cf-subtitle{margin:10px 0 0;color:#687386;font-size:14px;line-height:1.65;max-width:680px}
+    .cf-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #dfe4ec;border-radius:10px;padding:10px 15px;background:#fff;color:#172033;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s ease,transform .15s ease}
+    .cf-button:hover{opacity:.88;transform:translateY(-1px)}
+    .cf-button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .cf-button-primary{color:#fff;background:#6255e7;border-color:#6255e7}
+    .cf-button-danger{color:#a52f3b;border-color:#e4b9bf}
+    .cf-button-small{padding:7px 10px;font-size:12px}
+    .cf-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:22px 0}
+    .cf-stat,.cf-card{min-width:0;border:1px solid #e4e8ef;border-radius:14px;background:#fff;padding:18px}
+    .cf-stat-label,.cf-muted{color:#7a8496;font-size:12px;line-height:1.65}
+    .cf-stat-number{margin-top:8px;font-size:27px;font-weight:800}
+    .cf-section-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:28px 0 14px}
+    .cf-section-heading h2{margin:0;font-size:17px;font-weight:750}
+    .cf-case-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .cf-case-card{display:flex;flex-direction:column;align-items:stretch;gap:12px;width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer}
+    .cf-case-card:hover{border-color:#6255e7}
+    .cf-case-card h3{margin:0;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+    .cf-state{display:inline-flex;align-self:flex-start;max-width:100%;padding:5px 9px;border-radius:999px;background:#eeecff;color:#5546c9;font-size:11px;font-weight:800;overflow-wrap:anywhere}
+    .cf-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:20px 0}
+    .cf-detail-grid .cf-card{overflow-wrap:anywhere}
+    .cf-card h3{margin:0 0 12px;font-size:14px}
+    .cf-card p{margin:0;line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+    .cf-form{display:grid;gap:16px;margin-top:22px}
+    .cf-field{display:grid;gap:7px}
+    .cf-field label{font-size:13px;font-weight:700}
+    .cf-field input,.cf-field textarea{box-sizing:border-box;width:100%;min-width:0;border:1px solid #dfe4ec;border-radius:10px;padding:12px;color:#172033;background:#fff;font:inherit;font-size:14px;outline:none}
+    .cf-field input:focus,.cf-field textarea:focus{border-color:#8175ff}
+    .cf-field textarea{min-height:125px;resize:vertical;line-height:1.6}
+    .cf-field .cf-help{color:#7a8496;font-size:12px;line-height:1.6}
+    .cf-form-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+    .cf-empty{padding:32px 18px;text-align:center;border:1px dashed #dfe4ec;border-radius:14px;background:#fff}
+    .cf-empty h3{margin:0 0 8px;font-size:16px}
+    .cf-empty p{max-width:460px;margin:0 auto 18px;color:#7a8496;font-size:13px;line-height:1.7}
+    .cf-list{display:grid;gap:10px}
+    .cf-list-item{min-width:0;border:1px solid #e4e8ef;border-radius:12px;padding:14px;overflow-wrap:anywhere;background:#fff}
+    .cf-list-item p{margin:7px 0 0;font-size:13px;line-height:1.65;white-space:pre-wrap}
+    .cf-list-item .cf-muted{margin-top:6px}
+    .cf-divider{height:1px;margin:18px 0;background:#e4e8ef}
+    .cf-notice{margin:14px 0;padding:13px 14px;border:1px solid #dfe4ec;border-radius:10px;font-size:13px;line-height:1.7;overflow-wrap:anywhere;background:#fff}
+    .cf-notice-warning{border-color:#d7b75f;background:#fffaf0}
+    .cf-notice-success{border-color:#8bc5a8;background:#f2fbf6}
+    .cf-notice-error{border-color:#dfa2aa;background:#fff5f6}
+    .cf-pending{margin-top:20px;border:1px solid #7567e8;border-radius:14px;padding:18px;background:#f8f7ff}
+    .cf-pending h3{margin:0 0 12px;font-size:16px}
+    .cf-pending .cf-card{margin-top:10px;padding:13px}
+    .cf-pending-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    .cf-history-type{color:#5546c9;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+    .cf-footer-note{margin-top:24px;color:#7a8496;font-size:11px;line-height:1.7}
+    @media(max-width:650px){.cf-stats{grid-template-columns:1fr}.cf-case-list,.cf-detail-grid{grid-template-columns:1fr}.cf-page{padding-left:0;padding-right:0}}
+  `;
+
+  document.head.appendChild(style);
+}
+
+function renderStats() {
+  const total = state.cases.length;
+  const blocked = state.cases.filter((item) =>
+    item.blocker && !["None recorded", "Not yet assessed"].includes(item.blocker)
+  ).length;
+  const evidenceCount = state.cases.reduce(
+    (sum, item) => sum + (Array.isArray(item.evidence) ? item.evidence.length : 0),
+    0
+  );
+
+  return `<div class="cf-stats">
+    <div class="cf-stat"><div class="cf-stat-label">Tracked cases</div><div class="cf-stat-number">${total}</div></div>
+    <div class="cf-stat"><div class="cf-stat-label">Cases with a recorded blocker</div><div class="cf-stat-number">${blocked}</div></div>
+    <div class="cf-stat"><div class="cf-stat-label">Evidence records</div><div class="cf-stat-number">${evidenceCount}</div></div>
+  </div>`;
+}
+
+function renderCases() {
+  if (!state.cases.length) {
+    return `<div class="cf-empty">
+      <h3>No cases yet</h3>
+      <p>Create your first case to record the current situation, identify blockers and track the next action as new evidence arrives.</p>
+      <button type="button" class="cf-button cf-button-primary" data-cf-action="new-case">+ Create your first case</button>
+    </div>`;
+  }
+
+  return `<div class="cf-case-list">${state.cases.map((item) => `
+    <button type="button" class="cf-card cf-case-card" data-cf-action="open-case" data-case-id="${escapeHtml(item.id)}">
+      <span class="cf-state">${escapeHtml(item.state)}</span>
+      <h3>${escapeHtml(item.title)}</h3>
+      <p class="cf-muted">${escapeHtml(item.nextAction || "No next action recorded.")}</p>
+      <div class="cf-muted">Updated ${escapeHtml(formatDate(item.updatedAt))} | ${Array.isArray(item.evidence) ? item.evidence.length : 0} evidence item(s)</div>
+      <span class="cf-muted">Open case →</span>
+    </button>`).join("")}</div>`;
+}
+function showDashboard() {
+  state.currentView = "dashboard";
+  state.pendingTransition = null;
   const container = $("cases-container");
-
   if (!container) return;
 
-  if (!caseItem) {
-    showDashboard();
-    return;
-  }
-
-  const evidenceCount = Array.isArray(caseItem.evidence)
-    ? caseItem.evidence.length
-    : 0;
-
-  container.innerHTML = `
-    <div class="cf-page">
-      <div class="cf-topline">
-        <button class="cf-button" data-cf-action="back">
-          &lt;- All cases
-        </button>
-        <button class="cf-button cf-button-danger"
-          data-cf-action="delete-case"
-          data-case-id="${escapeHtml(caseItem.id)}">
-          Delete case
-        </button>
-      </div>
-
-      <p class="cf-eyebrow">Case record</p>
-      <h1 class="cf-title">${escapeHtml(caseItem.title)}</h1>
-
-      <p class="cf-subtitle">
-        Created ${escapeHtml(formatDate(caseItem.createdAt))}
-        | Updated ${escapeHtml(formatDateTime(caseItem.updatedAt))}
-      </p>
-
-      <div style="margin-top:16px">
-        <span class="cf-state">${escapeHtml(caseItem.state)}</span>
-      </div>
-
-      <div class="cf-detail-grid">
-        <section class="cf-card">
-          <h3>Current situation</h3>
-          <p>${escapeHtml(caseItem.situation || "Not recorded")}</p>
-        </section>
-
-        <section class="cf-card">
-          <h3>Current blocker</h3>
-          <p>${escapeHtml(caseItem.blocker || "Not recorded")}</p>
-        </section>
-
-        <section class="cf-card">
-          <h3>Next action</h3>
-          <p>${escapeHtml(caseItem.nextAction || "Not recorded")}</p>
-        </section>
-
-        <section class="cf-card">
-          <h3>Evidence summary</h3>
-          <p>${evidenceCount} evidence item(s) recorded.</p>
-          <p class="cf-muted" style="margin-top:8px">
-            Evidence does not automatically establish that a claim is true.
-          </p>
-        </section>
-      </div>
-
-      <section class="cf-card">
-        <h3>Add evidence</h3>
-        <p class="cf-muted">
-          Record a new document, event, observation or update.
-          CASEFLOW will save it first, then attempt to propose a transition.
-        </p>
-
-        <form id="cf-evidence-form" class="cf-form">
-          <div class="cf-field">
-            <label for="cf-evidence">New evidence</label>
-            <textarea id="cf-evidence" name="evidence"
-              maxlength="12000"
-              placeholder="What new information has arrived? Include relevant context and what it actually demonstrates."
-              required></textarea>
-          </div>
-
-          <div class="cf-form-actions">
-            <button type="submit" class="cf-button cf-button-primary">
-              Save evidence & analyze
-            </button>
-          </div>
-        </form>
-      </section>
-
-      ${state.pendingTransition?.caseId === caseItem.id
-        ? renderPendingTransition(state.pendingTransition)
-        : ""}
-
-      <div class="cf-section-heading">
-        <h2>Evidence log</h2>
-        <span class="cf-muted">${evidenceCount} item(s)</span>
-      </div>
-      ${renderEvidence(caseItem)}
-
-      <div class="cf-section-heading">
-        <h2>Case history</h2>
-        <span class="cf-muted">${caseItem.history.length} event(s)</span>
-      </div>
-      ${renderHistory(caseItem)}
-
-      <p class="cf-footer-note">
-        Proposed changes are not verified facts. Review the evidence and
-        proposed state before confirming a transition.
-      </p>
+  container.innerHTML = `<div class="cf-page">
+    <div class="cf-topline"><div><p class="cf-eyebrow">Case intelligence workspace</p><h1 class="cf-title">CASEFLOW</h1>
+      <p class="cf-subtitle">Keep the current state, blocker, next action and supporting evidence together. Review proposed changes before applying them.</p></div>
+      <button type="button" class="cf-button cf-button-primary" data-cf-action="new-case">+ New case</button>
     </div>
-  `;
-
-  $("cf-evidence-form")?.addEventListener("submit", handleEvidenceSubmit);
+    ${renderStats()}
+    <div class="cf-section-heading"><h2>Your cases</h2><span class="cf-muted">${state.cases.length} total</span></div>
+    ${renderCases()}
+    <p class="cf-footer-note">CASEFLOW stores case records in this browser. AI-generated transitions are proposals and require your confirmation. Browser storage is not a shared or server-side case database.</p>
+  </div>`;
 
   const primaryButton = $("primary-btn");
+  if (primaryButton) {
+    primaryButton.textContent = "+ New Case";
+    primaryButton.onclick = showCaseDefinitionForm;
+  }
 
+  const oldEmptyButton = $("empty-primary-btn");
+  if (oldEmptyButton) oldEmptyButton.onclick = showCaseDefinitionForm;
+}
+
+function showCaseDefinitionForm() {
+  state.currentView = "new-case";
+  state.pendingTransition = null;
+  const container = $("cases-container");
+  if (!container) return;
+
+  container.innerHTML = `<div class="cf-page">
+    <button type="button" class="cf-button" data-cf-action="back">← All cases</button>
+    <div style="margin-top:24px"><p class="cf-eyebrow">Start tracking</p><h1 class="cf-title">Create a case</h1>
+      <p class="cf-subtitle">Describe the real situation you need to move forward. Add evidence and refine the case as new information arrives.</p></div>
+    <form id="cf-create-form" class="cf-form">
+      <div class="cf-field"><label for="cf-title">Case title</label><input id="cf-title" name="title" maxlength="140" placeholder="e.g. Vendor compliance review" required /></div>
+      <div class="cf-field"><label for="cf-situation">Current situation</label><textarea id="cf-situation" name="situation" maxlength="8000" placeholder="What has happened so far? What is known, and what still needs to be resolved?" required></textarea>
+        <span class="cf-help">Record what is known. Avoid passwords, access tokens or unnecessary sensitive personal information.</span></div>
+      <div class="cf-form-actions"><button type="submit" class="cf-button cf-button-primary">Create case</button><button type="button" class="cf-button" data-cf-action="back">Cancel</button></div>
+    </form>
+  </div>`;
+
+  $("cf-create-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const title = $("cf-title")?.value.trim() || "";
+    const situation = $("cf-situation")?.value.trim() || "";
+    if (!title || !situation) return showNotice("Please complete both fields.", "error");
+    createCase(title, situation);
+  });
+
+  const primaryButton = $("primary-btn");
   if (primaryButton) {
     primaryButton.textContent = "All cases";
     primaryButton.onclick = showDashboard;
   }
 }
 
+function createCase(title, situation) {
+  const now = new Date().toISOString();
+  const item = {
+    id: makeId(),
+    title: title.trim(),
+    state: INITIAL_STATE,
+    situation: situation.trim(),
+    blocker: "Not yet assessed",
+    nextAction: "Review the situation and identify the next useful action.",
+    evidence: [],
+    history: [makeHistoryEntry("created", "Case created. Initial state recorded.")],
+    createdAt: now,
+    updatedAt: now
+  };
+
+  state.cases.unshift(item);
+  state.activeCaseId = item.id;
+
+  if (!saveCases()) {
+    state.cases = state.cases.filter((entry) => entry.id !== item.id);
+    state.activeCaseId = null;
+    showDashboard();
+    return;
+  }
+
+  showCaseDetail();
+}
+
+function renderEvidence(item) {
+  if (!item.evidence?.length) {
+    return `<div class="cf-empty"><p>No evidence has been recorded for this case yet.</p></div>`;
+  }
+
+  return `<div class="cf-list">${item.evidence.map((e) => `<article class="cf-list-item">
+    <div class="cf-muted">Added ${escapeHtml(formatDate(e.timestamp, true))}</div><p>${escapeHtml(e.text)}</p>
+    <div class="cf-muted">Analysis: ${escapeHtml(e.analysisStatus || "Not analyzed")}</div></article>`).join("")}</div>`;
+}
+
+function renderHistory(item) {
+  if (!item.history?.length) {
+    return `<p class="cf-muted">No history recorded yet.</p>`;
+  }
+
+  return `<div class="cf-list">${[...item.history].reverse().map((entry) => `<article class="cf-list-item">
+    <div class="cf-history-type">${escapeHtml(String(entry.type || "event").replace(/-/g, " "))}</div>
+    <div class="cf-muted">${escapeHtml(formatDate(entry.timestamp, true))}</div><p>${escapeHtml(entry.note || "")}</p>
+    ${entry.fromState || entry.toState ? `<div class="cf-muted">${escapeHtml(entry.fromState || "-")} → ${escapeHtml(entry.toState || "-")}</div>` : ""}
+  </article>`).join("")}</div>`;
+}
+
 function renderPendingTransition(proposal) {
-  return `
-    <section class="cf-pending">
-      <p class="cf-eyebrow">Human review required</p>
-      <h3>Proposed case transition</h3>
+  return `<section class="cf-pending"><p class="cf-eyebrow">Human review required</p><h3>Proposed case transition</h3>
+    <p class="cf-muted">AI-generated proposal only—not independently verified. Check each field against the evidence before applying it.</p>
+    ${[["Proposed state", proposal.state], ["Proposed blocker", proposal.blocker], ["Proposed next action", proposal.nextAction], ["AI explanation", proposal.reason]].map(([label, value]) => `<div class="cf-card"><div class="cf-muted">${label}</div><p>${escapeHtml(value)}</p></div>`).join("")}
+    <div class="cf-pending-actions"><button type="button" class="cf-button cf-button-primary" data-cf-action="confirm-transition">Confirm & apply</button>
+    <button type="button" class="cf-button" data-cf-action="reject-transition">Keep current state</button></div>
+  </section>`;
+}
 
-      <p class="cf-muted">
-        This is an AI-generated proposal, not an independently verified
-        conclusion. Check each field against the evidence before applying it.
-      </p>
+function showCaseDetail() {
+  state.currentView = "detail";
+  const item = getCurrentCase();
+  const container = $("cases-container");
+  if (!container) return;
+  if (!item) return showDashboard();
 
-      <div class="cf-card">
-        <div class="cf-muted">Proposed state</div>
-        <p>${escapeHtml(proposal.state)}</p>
-      </div>
+  if (!Array.isArray(item.evidence)) item.evidence = [];
+  if (!Array.isArray(item.history)) item.history = [];
 
-      <div class="cf-card">
-        <div class="cf-muted">Proposed blocker</div>
-        <p>${escapeHtml(proposal.blocker)}</p>
-      </div>
-
-      <div class="cf-card">
-        <div class="cf-muted">Proposed next action</div>
-        <p>${escapeHtml(proposal.nextAction)}</p>
-      </div>
-
-      <div class="cf-card">
-        <div class="cf-muted">AI explanation</div>
-        <p>${escapeHtml(proposal.reason)}</p>
-      </div>
-
-      <div class="cf-pending-actions">
-        <button class="cf-button cf-button-primary"
-          data-cf-action="confirm-transition"
-          ${state.busy ? "disabled" : ""}>
-          Confirm & apply
-        </button>
-
-        <button class="cf-button"
-          data-cf-action="reject-transition"
-          ${state.busy ? "disabled" : ""}>
-          Keep current state
-        </button>
-      </div>
+  container.innerHTML = `<div class="cf-page">
+    <div class="cf-topline"><button type="button" class="cf-button" data-cf-action="back">← All cases</button>
+      <button type="button" class="cf-button cf-button-danger" data-cf-action="delete-case" data-case-id="${escapeHtml(item.id)}">Delete case</button></div>
+    <p class="cf-eyebrow">Case record</p><h1 class="cf-title">${escapeHtml(item.title)}</h1>
+    <p class="cf-subtitle">Created ${escapeHtml(formatDate(item.createdAt))} | Updated ${escapeHtml(formatDate(item.updatedAt, true))}</p>
+    <div style="margin-top:16px"><span class="cf-state">${escapeHtml(item.state)}</span></div>
+    <div class="cf-detail-grid">
+      <section class="cf-card"><h3>Current situation</h3><p>${escapeHtml(item.situation || "Not recorded")}</p></section>
+      <section class="cf-card"><h3>Current blocker</h3><p>${escapeHtml(item.blocker || "Not recorded")}</p></section>
+      <section class="cf-card"><h3>Next action</h3><p>${escapeHtml(item.nextAction || "Not recorded")}</p></section>
+      <section class="cf-card"><h3>Evidence summary</h3><p>${item.evidence.length} evidence item(s) recorded.</p><p class="cf-muted" style="margin-top:8px">Evidence does not automatically establish that a claim is true.</p></section>
+    </div>
+    <section class="cf-card"><h3>Add evidence</h3><p class="cf-muted">Record a new document, event, observation or update. Evidence saves first; AI analysis is optional and depends on Anna runtime availability.</p>
+      <form id="cf-evidence-form" class="cf-form"><div class="cf-field"><label for="cf-evidence">New evidence</label>
+      <textarea id="cf-evidence" name="evidence" maxlength="12000" placeholder="What new information has arrived? Include relevant context and what it actually demonstrates." required></textarea></div>
+      <div class="cf-form-actions"><button type="submit" class="cf-button cf-button-primary">Save evidence & analyze</button></div></form>
     </section>
-  `;
+    ${state.pendingTransition?.caseId === item.id ? renderPendingTransition(state.pendingTransition) : ""}
+    <div class="cf-section-heading"><h2>Evidence log</h2><span class="cf-muted">${item.evidence.length} item(s)</span></div>${renderEvidence(item)}
+    <div class="cf-section-heading"><h2>Case history</h2><span class="cf-muted">${item.history.length} event(s)</span></div>${renderHistory(item)}
+    <p class="cf-footer-note">Proposed changes are not verified facts. Review the evidence and proposed state before confirming a transition.</p>
+  </div>`;
+
+  $("cf-evidence-form")?.addEventListener("submit", handleEvidenceSubmit);
+
+  const primaryButton = $("primary-btn");
+  if (primaryButton) {
+    primaryButton.textContent = "All cases";
+    primaryButton.onclick = showDashboard;
+  }
 }
 
 function extractText(response) {
@@ -1065,15 +387,9 @@ function extractText(response) {
   ];
 
   for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
 
-    if (
-      candidate &&
-      typeof candidate.text === "string" &&
-      candidate.text.trim()
-    ) {
+    if (candidate && typeof candidate.text === "string" && candidate.text.trim()) {
       return candidate.text.trim();
     }
 
@@ -1092,8 +408,7 @@ function extractText(response) {
 }
 
 function parseTransitionResponse(rawText) {
-  const cleaned = rawText
-    .trim()
+  const cleaned = rawText.trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
@@ -1104,30 +419,18 @@ function parseTransitionResponse(rawText) {
     parsed = JSON.parse(cleaned);
   } catch {
     const match = cleaned.match(/\{[\s\S]*\}/);
-
-    if (!match) {
-      throw new Error(
-        "The AI response did not contain a valid JSON transition."
-      );
-    }
+    if (!match) throw new Error("The AI response did not contain valid JSON.");
 
     try {
       parsed = JSON.parse(match[0]);
     } catch {
-      throw new Error(
-        "The AI returned invalid JSON. The current case was not changed."
-      );
+      throw new Error("The AI returned invalid JSON. The case state was not changed.");
     }
   }
 
   for (const field of TRANSITION_FIELDS) {
-    if (
-      typeof parsed?.[field] !== "string" ||
-      !parsed[field].trim()
-    ) {
-      throw new Error(
-        `The AI transition is incomplete: ${field} is missing.`
-      );
+    if (typeof parsed?.[field] !== "string" || !parsed[field].trim()) {
+      throw new Error(`The AI transition is incomplete: ${field} is missing.`);
     }
   }
 
@@ -1139,76 +442,34 @@ function parseTransitionResponse(rawText) {
   };
 }
 
-async function analyzeEvidence(caseItem, evidenceText) {
-  if (!state.anna) {
-    throw new Error(
-      "Anna AI is not connected. The evidence has been saved, but analysis is unavailable."
-    );
+async function analyzeEvidence(item, evidenceText) {
+  if (!state.anna?.llm?.complete) {
+    throw new Error("Anna AI is not connected. Evidence is saved, but AI analysis is unavailable in Render preview.");
   }
 
-  const prompt = `
-You are the decision-support engine inside CASEFLOW.
-
-Analyze the new evidence against the current case. Propose a careful,
-evidence-grounded update to the case's current state, blocker and next action.
-
+  const prompt = `You are the decision-support engine inside CASEFLOW.
+Analyze new evidence against the current case and propose a careful update.
 CURRENT CASE
-Title: ${caseItem.title}
-Situation: ${caseItem.situation}
-Current state: ${caseItem.state}
-Current blocker: ${caseItem.blocker}
-Current next action: ${caseItem.nextAction}
-
+Title: ${item.title}
+Situation: ${item.situation}
+Current state: ${item.state}
+Current blocker: ${item.blocker}
+Current next action: ${item.nextAction}
 NEW EVIDENCE
 ${evidenceText}
-
-Return ONLY a valid JSON object with exactly these four string fields:
-{
-  "state": "short descriptive current state",
-  "blocker": "current blocker after considering the evidence",
-  "nextAction": "single most useful next action",
-  "reason": "brief explanation of why this proposal follows from the evidence"
-}
-
-Rules:
-1. Do not invent facts, sources, verification, events, causes, or outcomes.
-2. Separate reported claims, supporting records, established facts, and unresolved questions.
-3. A statement from finance or a vendor is a reported claim unless corroborating evidence is supplied; do not label it independently verified.
-4. Missing transaction references or bank confirmation do not prove a bank-interface failure, fraud, or that funds were transferred.
-5. Do not infer a cause from a missing record. Describe the uncertainty and propose a concrete verification step.
-6. Explain what the new evidence changes and what it does not establish.
-7. Keep the current state if the new evidence does not justify a change; do not force a transition.
-8. Make the next action specific, practical, and proportionate to the evidence.
-9. Use concise language and describe the current situation, not an aspirational goal.
-10. Return only the four requested string fields, with no markdown or additional fields.
-11. This is a proposal for human review, not an automatic decision.
-`;
+Return ONLY a valid JSON object with exactly four non-empty string fields: "state", "blocker", "nextAction", "reason".
+Rules: Do not invent facts or verification. Separate reported claims from established facts. Do not infer causes from missing records. Keep current state if evidence does not justify change. Make next action specific and practical. This is a proposal for human review, not an automatic decision.`;
 
   const response = await state.anna.llm.complete({
-    systemPrompt:
-      "You are a precise, cautious case-state decision-support engine. Return only valid JSON.",
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text: prompt
-        }
-      }
-    ],
+    systemPrompt: "You are a precise, cautious case-state decision-support engine. Return only valid JSON.",
+    messages: [{ role: "user", content: { type: "text", text: prompt } }],
     maxTokens: 500
   });
 
-  const rawText = extractText(response);
+  const raw = extractText(response);
+  if (!raw) throw new Error("Anna returned an empty response. Evidence remains saved.");
 
-  if (!rawText) {
-    console.error("CASEFLOW: Empty AI response.", response);
-    throw new Error(
-      "Anna returned an empty response. The evidence is still saved."
-    );
-  }
-
-  const proposal = parseTransitionResponse(rawText);
+  const proposal = parseTransitionResponse(raw);
   const toolId = window.__ANNA_TOOL_IDS__?.caseflow;
 
   if (!toolId || typeof state.anna?.tools?.invoke !== "function") {
@@ -1240,82 +501,70 @@ Rules:
 
   return proposal;
 }
-
 async function handleEvidenceSubmit(event) {
   event.preventDefault();
-
   if (state.busy) return;
 
-  const caseItem = getCurrentCase();
-  const evidenceText = $("cf-evidence")?.value.trim() ?? "";
+  const item = getCurrentCase();
+  const evidenceText = $("cf-evidence")?.value.trim() || "";
 
-  if (!caseItem || !evidenceText) {
-    showNotice("Add evidence before submitting.", "error");
-    return;
+  if (!item || !evidenceText) {
+    return showNotice("Add evidence before submitting.", "error");
   }
 
-  const evidenceItem = {
-    id: crypto.randomUUID(),
+  const evidence = {
+    id: makeId(),
     timestamp: new Date().toISOString(),
     text: evidenceText,
     analysisStatus: "Saved - analysis pending"
   };
 
-  if (!Array.isArray(caseItem.evidence)) {
-    caseItem.evidence = [];
-  }
-
-  if (!Array.isArray(caseItem.history)) {
-    caseItem.history = [];
-  }
-
-  // Save evidence before making the AI request.
-  caseItem.evidence.push(evidenceItem);
-
-  caseItem.history.push(
+  item.evidence.push(evidence);
+  item.history.push(
     makeHistoryEntry(
       "evidence-added",
       "New evidence recorded. AI analysis has not yet been confirmed.",
-      { evidenceId: evidenceItem.id }
+      { evidenceId: evidence.id }
     )
   );
 
-  updateCase(caseItem, {});
-  saveCases();
-  showCaseDetail();
+  updateCase(item);
 
-  setBusy(true);
+  if (!saveCases()) {
+    item.evidence = item.evidence.filter((e) => e.id !== evidence.id);
+    item.history = item.history.filter((h) => h.evidenceId !== evidence.id);
+    showCaseDetail();
+    return;
+  }
+
+  showCaseDetail();
+  state.busy = true;
+
+  const submit = $("cf-evidence-form")?.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+
   setRuntimeState("Analyzing evidence...", "working");
 
   try {
-    const proposal = await analyzeEvidence(caseItem, evidenceText);
+    const proposal = await analyzeEvidence(item, evidenceText);
 
-    evidenceItem.analysisStatus = "Analysis complete - proposal awaits review";
+    evidence.analysisStatus = "Analysis complete - proposal awaits review";
 
     state.pendingTransition = {
-      caseId: caseItem.id,
-      evidenceId: evidenceItem.id,
-      state: proposal.state,
-      blocker: proposal.blocker,
-      nextAction: proposal.nextAction,
-      reason: proposal.reason,
-      originalState: caseItem.state,
-      originalBlocker: caseItem.blocker,
-      originalNextAction: caseItem.nextAction
+      caseId: item.id,
+      evidenceId: evidence.id,
+      ...proposal
     };
 
-    caseItem.history.push(
+    item.history.push(
       makeHistoryEntry(
         "transition-proposed",
         "AI proposed a transition. No case fields have been changed yet.",
-        {
-          evidenceId: evidenceItem.id,
-          proposedState: proposal.state
-        }
+        { evidenceId: evidence.id, proposedState: proposal.state }
       )
     );
 
-    updateCase(caseItem, {});
+    updateCase(item);
     saveCases();
 
     setRuntimeState("Proposal ready for review.", "connected");
@@ -1323,125 +572,111 @@ async function handleEvidenceSubmit(event) {
   } catch (error) {
     console.error("CASEFLOW: Evidence analysis failed.", error);
 
-    evidenceItem.analysisStatus = "Saved - analysis failed";
+    evidence.analysisStatus = "Saved - analysis unavailable";
 
-    caseItem.history.push(
+    item.history.push(
       makeHistoryEntry(
         "analysis-failed",
         `Evidence was saved, but analysis failed: ${error?.message || "Unknown error"}`,
-        { evidenceId: evidenceItem.id }
+        { evidenceId: evidence.id }
       )
     );
 
-    updateCase(caseItem, {});
+    updateCase(item);
     saveCases();
 
-    setRuntimeState("Evidence saved; analysis unavailable.", "error");
+    setRuntimeState("Evidence saved; AI analysis unavailable.", "error");
     showCaseDetail();
 
     showNotice(
-      `Evidence was saved. The current case state was not changed. Analysis error: ${error?.message || "Unknown error"}`,
+      `Evidence was saved. The case state was not changed. ${error?.message || "Analysis unavailable."}`,
       "error"
     );
   } finally {
-    setBusy(false);
+    state.busy = false;
   }
 }
 
 function confirmTransition() {
-  if (state.busy) return;
-
   const proposal = state.pendingTransition;
-  const caseItem = getCurrentCase();
+  const item = getCurrentCase();
 
-  if (
-    !proposal ||
-    !caseItem ||
-    proposal.caseId !== caseItem.id
-  ) {
-    showNotice("There is no pending transition to confirm.", "error");
-    return;
+  if (!proposal || !item || proposal.caseId !== item.id) {
+    return showNotice("There is no pending transition to confirm.", "error");
   }
 
-  const oldState = caseItem.state;
-  const oldBlocker = caseItem.blocker;
-  const oldNextAction = caseItem.nextAction;
+  const old = {
+    state: item.state,
+    blocker: item.blocker,
+    nextAction: item.nextAction,
+    historyLength: item.history.length
+  };
 
-  caseItem.state = proposal.state;
-  caseItem.blocker = proposal.blocker;
-  caseItem.nextAction = proposal.nextAction;
+  item.state = proposal.state;
+  item.blocker = proposal.blocker;
+  item.nextAction = proposal.nextAction;
 
-  caseItem.history.push(
+  item.history.push(
     makeHistoryEntry(
       "transition-confirmed",
       "User confirmed and applied the proposed case transition.",
       {
         evidenceId: proposal.evidenceId,
-        fromState: oldState,
+        fromState: old.state,
         toState: proposal.state,
-        previousBlocker: oldBlocker,
-        previousNextAction: oldNextAction,
+        previousBlocker: old.blocker,
+        previousNextAction: old.nextAction,
         reason: proposal.reason
       }
     )
   );
 
-  const evidenceItem = caseItem.evidence.find(
-    (item) => item.id === proposal.evidenceId
-  );
+  const evidence = item.evidence.find((e) => e.id === proposal.evidenceId);
+  if (evidence) evidence.analysisStatus = "Proposal reviewed and applied by user";
 
-  if (evidenceItem) {
-    evidenceItem.analysisStatus = "Proposal reviewed and applied by user";
-  }
-
-  updateCase(caseItem, {});
+  updateCase(item);
 
   if (!saveCases()) {
-    // Restore the prior values if persistence fails.
-    caseItem.state = oldState;
-    caseItem.blocker = oldBlocker;
-    caseItem.nextAction = oldNextAction;
-    caseItem.history.pop();
+    item.state = old.state;
+    item.blocker = old.blocker;
+    item.nextAction = old.nextAction;
+    item.history.length = old.historyLength;
 
-    if (evidenceItem) {
-      evidenceItem.analysisStatus =
-        "Analysis complete - proposal awaits review";
+    if (evidence) {
+      evidence.analysisStatus = "Analysis complete - proposal awaits review";
     }
 
+    showCaseDetail();
     return;
   }
 
   state.pendingTransition = null;
-  setRuntimeState("Transition applied.", "connected");
+  setRuntimeState("Transition applied.", "ready");
   showCaseDetail();
 
   showNotice(
-    "Transition confirmed. The case state, blocker and next action have been updated.",
+    "Transition confirmed. Case state, blocker and next action were updated.",
     "success"
   );
 }
 
 function rejectTransition() {
   const proposal = state.pendingTransition;
-  const caseItem = getCurrentCase();
+  const item = getCurrentCase();
 
-  if (!proposal || !caseItem || proposal.caseId !== caseItem.id) {
-    showNotice("There is no pending transition to reject.", "error");
-    return;
+  if (!proposal || !item || proposal.caseId !== item.id) {
+    return showNotice("There is no pending transition to reject.", "error");
   }
 
-    const previousCase = JSON.parse(JSON.stringify(caseItem));
+  const oldHistoryLength = item.history.length;
+  const evidence = item.evidence.find((e) => e.id === proposal.evidenceId);
+  const oldStatus = evidence?.analysisStatus;
 
-  const evidenceItem = caseItem.evidence.find(
-    (item) => item.id === proposal.evidenceId
-  );
-
-  if (evidenceItem) {
-    evidenceItem.analysisStatus =
-      "Reviewed - proposed transition not applied";
+  if (evidence) {
+    evidence.analysisStatus = "Reviewed - proposed transition not applied";
   }
 
-  caseItem.history.push(
+  item.history.push(
     makeHistoryEntry(
       "transition-rejected",
       "User kept the existing case state. The AI proposal was not applied.",
@@ -1449,42 +684,40 @@ function rejectTransition() {
     )
   );
 
-  updateCase(caseItem, {});
+  updateCase(item);
 
   if (!saveCases()) {
-    Object.assign(caseItem, previousCase);
+    item.history.length = oldHistoryLength;
+    if (evidence) evidence.analysisStatus = oldStatus;
     showCaseDetail();
-    showNotice("Could not save the rejection. Please retry.", "error");
     return;
   }
 
   state.pendingTransition = null;
-
   setRuntimeState("Existing state retained.", "ready");
   showCaseDetail();
 
   showNotice(
-    "The proposal was not applied. The previous state, blocker and next action remain unchanged.",
+    "Proposal rejected. The existing state, blocker and next action remain unchanged.",
     "success"
   );
 }
 
 function deleteCase(caseId) {
-  const caseItem = state.cases.find((item) => item.id === caseId);
+  const item = state.cases.find((entry) => entry.id === caseId);
+  if (!item) return;
 
-  if (!caseItem) return;
+  if (!window.confirm(
+    `Delete "${item.title}" and its evidence/history from this browser? This cannot be undone.`
+  )) {
+    return;
+  }
 
-  const confirmed = window.confirm(
-    `Delete "${caseItem.title}" and its evidence/history from this browser? This cannot be undone.`
-  );
-
-  if (!confirmed) return;
-
-  const previousCases = state.cases;
-  state.cases = state.cases.filter((item) => item.id !== caseId);
+  const previous = state.cases;
+  state.cases = state.cases.filter((entry) => entry.id !== caseId);
 
   if (!saveCases()) {
-    state.cases = previousCases;
+    state.cases = previous;
     return;
   }
 
@@ -1497,68 +730,49 @@ function deleteCase(caseId) {
 
 function handleActionClick(event) {
   const button = event.target.closest("[data-cf-action]");
-
   if (!button) return;
 
   const action = button.dataset.cfAction;
 
-  if (action === "new-case") {
-    showCaseDefinitionForm();
-    return;
-  }
+  if (action === "new-case") return showCaseDefinitionForm();
 
   if (action === "back") {
     state.pendingTransition = null;
-    showDashboard();
-    return;
+    return showDashboard();
   }
 
   if (action === "open-case") {
     state.activeCaseId = button.dataset.caseId;
     state.pendingTransition = null;
-    showCaseDetail();
-    return;
+    return showCaseDetail();
   }
 
-  if (action === "delete-case") {
-    deleteCase(button.dataset.caseId);
-    return;
-  }
-
-  if (action === "confirm-transition") {
-    confirmTransition();
-    return;
-  }
-
-  if (action === "reject-transition") {
-    rejectTransition();
-  }
+  if (action === "delete-case") return deleteCase(button.dataset.caseId);
+  if (action === "confirm-transition") return confirmTransition();
+  if (action === "reject-transition") return rejectTransition();
 }
 
 async function connectAnna() {
   try {
-    const { AnnaAppRuntime } = await import(
-      "/static/anna-apps/_sdk/latest/index.js"
-    );
+    // This SDK exists inside the Anna host, not on ordinary static hosting such as Render.
+    const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
 
     state.anna = await AnnaAppRuntime.connect();
 
     if (!state.anna?.llm?.complete) {
-      throw new Error(
-        "Anna connected, but the LLM completion API is unavailable."
-      );
+      throw new Error("Anna LLM API is unavailable.");
     }
 
     setRuntimeState("Anna AI connected.", "connected");
   } catch (error) {
     state.anna = null;
 
-    console.error("CASEFLOW: Anna connection failed.", error);
-
-    setRuntimeState(
-      "Local mode - AI analysis unavailable.",
-      "error"
+    console.info(
+      "CASEFLOW: Anna runtime unavailable; local case features remain enabled.",
+      error
     );
+
+    setRuntimeState("Local mode - AI analysis unavailable.", "error");
   }
 }
 
@@ -1569,27 +783,35 @@ async function main() {
   const container = $("cases-container");
 
   if (!container) {
-    console.error(
-      "CASEFLOW: Missing #cases-container in bundle/index.html."
-    );
+    console.error("CASEFLOW: Missing #cases-container in bundle/index.html.");
+    setRuntimeState("App startup error: dashboard container missing.", "error");
     return;
   }
 
+  // Keep dynamically rendered buttons working through event delegation.
   container.addEventListener("click", handleActionClick);
 
   const primaryButton = $("primary-btn");
 
   if (primaryButton) {
     primaryButton.onclick = showCaseDefinitionForm;
-    primaryButton.textContent = "New case";
+    primaryButton.textContent = "+ New Case";
   }
 
+  const emptyPrimaryButton = $("empty-primary-btn");
+
+  if (emptyPrimaryButton) {
+    emptyPrimaryButton.onclick = showCaseDefinitionForm;
+  }
+
+  // Render the interface first; don't wait for Anna runtime.
   showDashboard();
 
-  await connectAnna();
+  // On Render, this should fail gracefully into local mode.
+  void connectAnna();
 }
 
 main().catch((error) => {
   console.error("CASEFLOW failed to start.", error);
-  setRuntimeState("App startup error.", "error");
+  setRuntimeState("App startup error. Check browser console.", "error");
 });
