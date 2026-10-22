@@ -9,6 +9,7 @@ const state = {
   activeId: null,
   pendingProposal: null,
   anna: null,
+  pendingProposal: null,
   busy: false,
   csrf: ""
 };
@@ -172,6 +173,38 @@ function renderEvidence(item) {
   if (!item.evidence || !item.evidence.length) return '<div class="cf-empty"><p>No evidence has been recorded yet.</p></div>';
   return '<div class="cf-list">' + item.evidence.map((e) => '<article class="cf-list-item"><div class="cf-muted">' + esc(date(e.timestamp,true)) + (e.sourceLabel ? " · " + esc(e.sourceLabel) : "") + '</div><p>' + esc(e.text) + '</p></article>').join("") + '</div>';
 }
+async function analyzeEvidence(item, evidenceText) {
+  if (!state.anna || !state.anna.llm || typeof state.anna.llm.complete !== "function") throw new Error("Anna AI is not connected in this hosting context.");
+  const prompt = "You are CASEFLOW's cautious decision-support engine. Review the case and new evidence. Return only JSON with exactly four non-empty string fields: state, blocker, next_action, reason. Do not invent facts. Distinguish claims from verified facts. Keep current state if the evidence does not justify a change. A proposal is not an automatic decision.\n\nCASE TITLE: " + item.title + "\nCURRENT SITUATION: " + item.situation + "\nCURRENT STATE: " + item.state + "\nCURRENT BLOCKER: " + item.blocker + "\nCURRENT NEXT ACTION: " + item.nextAction + "\n\nNEW EVIDENCE:\n" + evidenceText;
+  const response = await state.anna.llm.complete({systemPrompt:"You are a precise, cautious case-state decision-support engine. Return only valid JSON.",messages:[{role:"user",content:{type:"text",text:prompt}}]});
+  let raw = "";
+  const candidates = [response && response.content,response && response.result && response.result.content,response && response.text,response && response.result && response.result.text];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) { raw = candidate.trim(); break; }
+    if (candidate && typeof candidate.text === "string" && candidate.text.trim()) { raw = candidate.text.trim(); break; }
+    if (Array.isArray(candidate)) { raw = candidate.filter((p) => p && p.type === "text").map((p) => p.text || "").join("").trim(); if (raw) break; }
+  }
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (_) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Anna returned no valid JSON proposal.");
+    parsed = JSON.parse(match[0]);
+  }
+  const nextAction = parsed.next_action || parsed.nextAction;
+  for (const value of [parsed.state,parsed.blocker,nextAction,parsed.reason]) if (typeof value !== "string" || !value.trim()) throw new Error("Anna's proposal was incomplete.");
+  return {state:parsed.state.trim(),blocker:parsed.blocker.trim(),next_action:nextAction.trim(),reason:parsed.reason.trim()};
+}
+async function reviewProposal(accepted) {
+  const proposal = state.pendingProposal;
+  if (!proposal || !isManager()) return notice("There is no proposal to review.", "error");
+  try {
+    await api("/api/cases/" + encodeURIComponent(proposal.caseId) + "/transition-review", {method:"POST",body:JSON.stringify({accepted:accepted,state:proposal.state,blocker:proposal.blocker,next_action:proposal.next_action,reason:proposal.reason})});
+    state.pendingProposal = null;
+    await refreshData();
+    showDetail(proposal.caseId);
+    notice(accepted ? "Proposal reviewed and applied. The decision is in the audit history." : "Proposal rejected. Existing case fields remain unchanged; the review is in the audit history.", "success");
+  } catch (error) { notice(error.message, "error"); }
+}
 function showDetail(id) {
   const item = state.cases.find((x) => x.id === String(id));
   if (!item) { showDashboard(); return; }
@@ -180,9 +213,9 @@ function showDetail(id) {
   const requests = (item.history || []).filter((h) => h.type === "admin_change_requested");
   const latestRequest = requests[0];
   const requestPanel = latestRequest ? '<section class="cf-request"><div class="cf-history-type">Admin review request</div><p>' + esc(latestRequest.note) + '</p><div class="cf-muted">' + esc(date(latestRequest.timestamp,true)) + '</div>' + (isManager() && isAwaitingCorrection(item) ? '<p><strong>Please update the case below, then save your changes.</strong></p>' : "") + '</section>' : "";
-  const managerEdit = isManager() ? '<section class="cf-card"><h3>Update case record</h3><p class="cf-muted">Saving records the changed fields and preserves the earlier history.</p><form id="edit-form" class="cf-form"><div class="cf-field"><label for="edit-title">Case title</label><input id="edit-title" maxlength="200" required value="' + esc(item.title) + '"></div><div class="cf-field"><label for="edit-description">Current situation</label><textarea id="edit-description" maxlength="10000">' + esc(item.situation) + '</textarea></div><div class="cf-two-col"><div class="cf-field"><label for="edit-state">State</label><input id="edit-state" maxlength="100" required value="' + esc(item.state) + '"></div><div class="cf-field"><label for="edit-blocker">Blocker</label><input id="edit-blocker" maxlength="10000" value="' + esc(item.blocker) + '"></div></div><div class="cf-field"><label for="edit-next">Next action</label><textarea id="edit-next" maxlength="10000">' + esc(item.nextAction) + '</textarea></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">Save case updates</button></div></form></section><section class="cf-card" style="margin-top:16px"><h3>Add evidence</h3><form id="evidence-form" class="cf-form"><div class="cf-field"><label for="evidence-source">Source label (optional)</label><input id="evidence-source" maxlength="200" placeholder="e.g. Supplier email, inspection note"></div><div class="cf-field"><label for="evidence-content">Evidence / observation</label><textarea id="evidence-content" maxlength="20000" required placeholder="Record what the source says and what it actually demonstrates."></textarea></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">Save evidence</button></div></form></section>' : "";
+  const proposal = state.pendingProposal && state.pendingProposal.caseId === item.id ? '<section class="cf-request" id="cf-pending-proposal"><div class="cf-history-type">AI proposal · human review required</div><p class="cf-muted">This is a suggestion, not a verified fact. Check it against the evidence before applying.</p><div class="cf-card"><strong>Proposed state</strong><p>' + esc(state.pendingProposal.state) + '</p><strong>Proposed blocker</strong><p>' + esc(state.pendingProposal.blocker) + '</p><strong>Proposed next action</strong><p>' + esc(state.pendingProposal.next_action) + '</p><strong>Reasoning</strong><p>' + esc(state.pendingProposal.reason) + '</p></div><div class="cf-detail-actions"><button type="button" class="cf-button cf-button-primary" data-action="confirm-transition">Confirm &amp; apply</button><button type="button" class="cf-button" data-action="reject-transition">Reject proposal</button></div></section>' : "";\n  const managerEdit = isManager() ? '<section class="cf-card"><h3>Update case record</h3><p class="cf-muted">Saving records the changed fields and preserves the earlier history.</p><form id="edit-form" class="cf-form"><div class="cf-field"><label for="edit-title">Case title</label><input id="edit-title" maxlength="200" required value="' + esc(item.title) + '"></div><div class="cf-field"><label for="edit-description">Current situation</label><textarea id="edit-description" maxlength="10000">' + esc(item.situation) + '</textarea></div><div class="cf-two-col"><div class="cf-field"><label for="edit-state">State</label><input id="edit-state" maxlength="100" required value="' + esc(item.state) + '"></div><div class="cf-field"><label for="edit-blocker">Blocker</label><input id="edit-blocker" maxlength="10000" value="' + esc(item.blocker) + '"></div></div><div class="cf-field"><label for="edit-next">Next action</label><textarea id="edit-next" maxlength="10000">' + esc(item.nextAction) + '</textarea></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">Save case updates</button></div></form></section><section class="cf-card" style="margin-top:16px"><h3>Add evidence</h3><form id="evidence-form" class="cf-form"><div class="cf-field"><label for="evidence-source">Source label (optional)</label><input id="evidence-source" maxlength="200" placeholder="e.g. Supplier email, inspection note"></div><div class="cf-field"><label for="evidence-content">Evidence / observation</label><textarea id="evidence-content" maxlength="20000" required placeholder="Record what the source says and what it actually demonstrates."></textarea></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">Save evidence</button></div></form></section>' : "";
   const adminReview = isAdmin() ? '<section class="cf-card"><h3>Request changes</h3><p class="cf-muted">This creates a visible audit event for the Account Manager. It does not edit the case fields.</p><form id="review-form" class="cf-form"><div class="cf-field"><label for="review-message">What needs correction or clarification?</label><textarea id="review-message" maxlength="5000" required placeholder="Specify the missing evidence, blocker to clarify, or next action to revise."></textarea></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">Send review request</button></div></form></section>' : "";
-  $("cases-container").innerHTML = '<div class="cf-page"><div class="cf-topline"><button type="button" class="cf-button" data-action="back">← ' + (isAdmin() ? "All cases" : "My cases") + '</button><span class="cf-tag">' + esc(item.state) + '</span></div><p class="cf-eyebrow">Case record</p><h1 class="cf-title">' + esc(item.title) + '</h1><p class="cf-subtitle">Created ' + esc(date(item.createdAt)) + ' · Updated ' + esc(date(item.updatedAt,true)) + (isAdmin() ? ' · Owner ' + esc(item.ownerEmail) : "") + '</p>' + requestPanel + '<div class="cf-two-col" style="margin:22px 0"><section class="cf-card"><h3>Current situation</h3><p>' + esc(item.situation || "Not recorded") + '</p></section><section class="cf-card"><h3>Current blocker</h3><p>' + esc(item.blocker || "Not recorded") + '</p></section><section class="cf-card"><h3>Next action</h3><p>' + esc(item.nextAction || "Not recorded") + '</p></section><section class="cf-card"><h3>Evidence summary</h3><p>' + item.evidence.length + ' evidence item(s) recorded.</p><p class="cf-muted">Evidence is a record of information, not automatic proof that a claim is true.</p></section></div>' + managerEdit + adminReview + '<div class="cf-section-heading"><h2>Evidence log</h2><span class="cf-muted">' + item.evidence.length + ' item(s)</span></div>' + renderEvidence(item) + '<div class="cf-section-heading"><h2>Case history</h2><span class="cf-muted">' + item.history.length + ' event(s)</span></div>' + renderHistory(item) + '<p class="cf-footer-note">No record is silently overwritten: saved field changes, evidence entries and review requests are preserved in the server-side history.</p></div>';
+  $("cases-container").innerHTML = '<div class="cf-page"><div class="cf-topline"><button type="button" class="cf-button" data-action="back">← ' + (isAdmin() ? "All cases" : "My cases") + '</button><span class="cf-tag">' + esc(item.state) + '</span></div><p class="cf-eyebrow">Case record</p><h1 class="cf-title">' + esc(item.title) + '</h1><p class="cf-subtitle">Created ' + esc(date(item.createdAt)) + ' · Updated ' + esc(date(item.updatedAt,true)) + (isAdmin() ? ' · Owner ' + esc(item.ownerEmail) : "") + '</p>' + requestPanel + proposal + '<div class="cf-two-col" style="margin:22px 0"><section class="cf-card"><h3>Current situation</h3><p>' + esc(item.situation || "Not recorded") + '</p></section><section class="cf-card"><h3>Current blocker</h3><p>' + esc(item.blocker || "Not recorded") + '</p></section><section class="cf-card"><h3>Next action</h3><p>' + esc(item.nextAction || "Not recorded") + '</p></section><section class="cf-card"><h3>Evidence summary</h3><p>' + item.evidence.length + ' evidence item(s) recorded.</p><p class="cf-muted">Evidence is a record of information, not automatic proof that a claim is true.</p></section></div>' + managerEdit + adminReview + '<div class="cf-section-heading"><h2>Evidence log</h2><span class="cf-muted">' + item.evidence.length + ' item(s)</span></div>' + renderEvidence(item) + '<div class="cf-section-heading"><h2>Case history</h2><span class="cf-muted">' + item.history.length + ' event(s)</span></div>' + renderHistory(item) + '<p class="cf-footer-note">No record is silently overwritten: saved field changes, evidence entries and review requests are preserved in the server-side history.</p></div>';
   if (isManager()) {
     $("edit-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -203,12 +236,27 @@ function showDetail(id) {
       const button = event.currentTarget.querySelector('[type="submit"]');
       button.disabled = true;
       try {
-        await api("/api/cases/" + encodeURIComponent(item.id) + "/evidence", {method:"POST",body:JSON.stringify({
-          source_label:$("evidence-source").value.trim(),content:$("evidence-content").value.trim()
-        })});
+        const evidenceText = $("evidence-content").value.trim();
+        await api("/api/cases/" + encodeURIComponent(item.id) + "/evidence", {method:"POST",body:JSON.stringify({source_label:$("evidence-source").value.trim(),content:evidenceText})});
         await refreshData();
         showDetail(item.id);
         notice("Evidence saved to PostgreSQL and added to the audit history.", "success");
+        if (state.anna && state.anna.llm && typeof state.anna.llm.complete === "function") {
+          setStatus("Analyzing evidence for a proposal…", "working");
+          try {
+            const freshItem = state.cases.find((x) => x.id === item.id);
+            const result = await analyzeEvidence(freshItem, evidenceText);
+            state.pendingProposal = Object.assign({caseId:item.id}, result);
+            showDetail(item.id);
+            notice("AI proposal ready. No case fields have changed; review it before applying.", "warning");
+            setStatus("Proposal ready for human review.", "connected");
+          } catch (analysisError) {
+            notice("Evidence is saved. AI analysis could not complete: " + analysisError.message, "warning");
+            setStatus("Evidence saved; AI analysis unavailable.", "ready");
+          }
+        } else {
+          notice("Evidence is saved. AI analysis is available only inside the Anna app runtime.", "warning");
+        }
       } catch (error) { notice(error.message, "error"); button.disabled = false; }
     });
   }
@@ -252,6 +300,8 @@ async function handleClick(event) {
   if (action === "new-case") return showCreateForm();
   if (action === "back") { state.filter = "all"; return showDashboard(); }
   if (action === "open") return showDetail(button.dataset.id);
+  if (action === "confirm-transition") return reviewProposal(true);
+  if (action === "reject-transition") return reviewProposal(false);
   if (action === "users") return showUsers();
   if (action === "audit") return showAudit();
 }
