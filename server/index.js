@@ -15,8 +15,8 @@ const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const port = Number(process.env.PORT || 3000);
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-if (isProduction && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || !process.env.COMPANY_INVITE_CODE)) {
-  throw new Error('SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, and COMPANY_INVITE_CODE must be configured in production');
+if (isProduction && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || !process.env.COMPANY_INVITE_CODE || !process.env.ALLOWED_EMAIL_DOMAIN)) {
+  throw new Error('SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY_INVITE_CODE, and ALLOWED_EMAIL_DOMAIN must be configured in production');
 }
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -112,7 +112,10 @@ app.post('/api/auth/register', signupLimiter, requireCsrf, async (req, res, next
     const email = normalizeEmail(req.body && req.body.email);
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     const inviteCode = typeof req.body?.inviteCode === 'string' ? req.body.inviteCode.trim() : '';
-    if (!validEmail(email) || password.length < 12 || password.length > 128 || inviteCode.length < 16 || inviteCode.length > 256) return res.status(400).json({ error: 'Enter a valid work email, a 12–128 character password, and a valid company invite code.' });
+    const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAIN || '').split(',').map(d => d.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
+    const emailDomain = email.split('@')[1] || '';
+    if (!validEmail(email) || !allowedDomains.includes(emailDomain)) return res.status(400).json({ error: 'Use an email address from your approved company work-email domain.' });
+    if (password.length < 12 || password.length > 128 || inviteCode.length < 16 || inviteCode.length > 256) return res.status(400).json({ error: 'Use a 12–128 character password and enter the company invite code.' });
     const configured = await pool.query('SELECT invite_code_hash FROM company_settings WHERE id=1');
     const storedHash = configured.rows[0]?.invite_code_hash;
     const suppliedHash = crypto.createHash('sha256').update(inviteCode).digest('hex');
