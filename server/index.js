@@ -223,13 +223,14 @@ app.patch('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req,
 
 app.get('/api/cases', requireAuth, async (req, res, next) => {
   try {
+    const columns = 'c.id,c.title,c.description,c.state,c.blocker,c.next_action,c.owner_user_id,c.created_at,c.updated_at,u.email AS owner_email';
     const result = req.session.user.role === 'admin'
-      ? await pool.query('SELECT id,title,description,state,blocker,next_action,owner_user_id,created_at,updated_at FROM cases ORDER BY updated_at DESC')
-      : await pool.query('SELECT id,title,description,state,blocker,next_action,owner_user_id,created_at,updated_at FROM cases WHERE owner_user_id=$1 ORDER BY updated_at DESC', [req.session.user.id]);
+      ? await pool.query('SELECT ' + columns + ' FROM cases c JOIN users u ON u.id=c.owner_user_id ORDER BY c.updated_at DESC')
+      : await pool.query('SELECT ' + columns + ' FROM cases c JOIN users u ON u.id=c.owner_user_id WHERE c.owner_user_id=$1 ORDER BY c.updated_at DESC', [req.session.user.id]);
     res.json({ cases: result.rows });
   } catch (error) { next(error); }
 });
-app.post('/api/cases', requireAuth, requireCsrf, async (req, res, next) => {
+app.post('/api/cases', requireRole('account_manager'), requireCsrf, async (req, res, next) => {
   const title = typeof (req.body && req.body.title) === 'string' ? req.body.title.trim() : '';
   const description = typeof (req.body && req.body.description) === 'string' ? req.body.description.trim() : '';
   if (!title || title.length > 200 || description.length > 10000) return res.status(400).json({ error: 'Title is required (max 200 characters); description max is 10,000 characters.' });
@@ -278,7 +279,7 @@ app.get('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) =>
     res.json({ case: req.caseRecord, evidence: results[0].rows, history: results[1].rows });
   } catch (error) { next(error); }
 });
-app.patch('/api/cases/:id', requireAuth, requireCsrf, getCaseForUser, async (req, res, next) => {
+app.patch('/api/cases/:id', requireRole('account_manager'), requireCsrf, getCaseForUser, async (req, res, next) => {
   const allowed = ['title', 'description', 'state', 'blocker', 'next_action'];
   const updates = {};
   for (const key of allowed) if (typeof (req.body && req.body[key]) === 'string') updates[key] = req.body[key].trim();
@@ -299,7 +300,7 @@ app.patch('/api/cases/:id', requireAuth, requireCsrf, getCaseForUser, async (req
     await client.query('ROLLBACK'); next(error);
   } finally { client.release(); }
 });
-app.post('/api/cases/:id/evidence', requireAuth, requireCsrf, getCaseForUser, async (req, res, next) => {
+app.post('/api/cases/:id/evidence', requireRole('account_manager'), requireCsrf, getCaseForUser, async (req, res, next) => {
   const content = typeof (req.body && req.body.content) === 'string' ? req.body.content.trim() : '';
   const sourceLabel = typeof (req.body && req.body.source_label) === 'string' ? req.body.source_label.trim() : '';
   if (!content || content.length > 20000 || sourceLabel.length > 200) return res.status(400).json({ error: 'Evidence text is required (max 20,000 characters); source label max is 200.' });
@@ -314,6 +315,23 @@ app.post('/api/cases/:id/evidence', requireAuth, requireCsrf, getCaseForUser, as
   } catch (error) {
     await client.query('ROLLBACK'); next(error);
   } finally { client.release(); }
+});
+
+app.post('/api/cases/:id/review-request', requireRole('admin'), requireCsrf, getCaseForUser, async (req, res, next) => {
+  const message = typeof (req.body && req.body.message) === 'string' ? req.body.message.trim() : '';
+  if (!message || message.length > 5000) return res.status(400).json({ error: 'A review request is required (max 5,000 characters).' });
+  try {
+    await recordHistory(pool, req.caseRecord.id, req.session.user.id, 'admin_change_requested', 'Admin requested changes: ' + message, { message });
+    res.status(201).json({ ok: true });
+  } catch (error) { next(error); }
+});
+app.get('/api/admin/audit-log', requireRole('admin'), async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      'SELECT h.id,h.case_id,h.actor_user_id,h.event_type,h.summary,h.details,h.created_at,c.title AS case_title,u.email AS actor_email FROM case_history h JOIN cases c ON c.id=h.case_id JOIN users u ON u.id=h.actor_user_id ORDER BY h.created_at DESC LIMIT 500'
+    );
+    res.json({ events: result.rows });
+  } catch (error) { next(error); }
 });
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
