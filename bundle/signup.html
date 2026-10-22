@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#3A0F34"><title>Join CASEFLOW · Account Manager</title>
+<style>
+:root{color-scheme:light;--ink:#3A0F34;--gold:#EAAA00;--ice:#DDE3E8;--muted:#667085}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 10%,#fff 0,transparent 34%),linear-gradient(135deg,#f5f6f8,#DDE3E8);display:grid;place-items:center;padding:24px}
+.shell{width:min(100%,980px);display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #ffffffb8;border-radius:28px;overflow:hidden;box-shadow:0 28px 90px #3A0F3418}
+aside{padding:44px;background:linear-gradient(155deg,#3A0F34,#57234e);color:white;display:flex;flex-direction:column;justify-content:space-between;min-height:590px}
+.logo{font-size:14px;font-weight:850;letter-spacing:.18em}.eyebrow{color:#f5c84e;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-top:64px}
+h1{font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.04em;margin:14px 0}aside p{color:#f4eaf2;max-width:340px}.pill{display:inline-flex;align-items:center;gap:8px;background:#ffffff14;border:1px solid #ffffff26;border-radius:999px;padding:10px 13px;font-size:12px;width:max-content}
+main{padding:clamp(28px,5vw,54px)}h2{font-size:28px;letter-spacing:-.03em;margin:0 0 8px}.sub{color:var(--muted);margin:0 0 28px;font-size:14px}
+label{display:block;font-size:13px;font-weight:750;margin:17px 0 7px}input{width:100%;padding:13px 14px;border:1px solid #d8dce3;border-radius:12px;font:inherit;color:var(--ink);outline:none;background:#fff}input:focus{border-color:var(--gold);box-shadow:0 0 0 3px #EAAA0028}
+button{margin-top:24px;width:100%;border:0;border-radius:12px;padding:14px;background:var(--ink);color:white;font:inherit;font-weight:800;cursor:pointer;transition:transform .15s,background .15s}button:hover{background:#512044;transform:translateY(-1px)}button:disabled{opacity:.6;cursor:wait}
+.note{font-size:12px;color:var(--muted);margin-top:15px}.message{display:none;padding:12px 14px;border-radius:12px;background:#f3f5f7;color:var(--ink);font-size:13px;margin-top:18px;overflow-wrap:anywhere}.message.show{display:block}.foot{margin-top:26px;font-size:13px;color:var(--muted)}a{color:var(--ink);font-weight:800}
+@media(max-width:700px){.shell{grid-template-columns:1fr}aside{min-height:auto;padding:28px}.eyebrow{margin-top:32px}main{padding:28px}h1{font-size:34px}}
+</style></head>
+<body><div class="shell">
+<aside><div><div class="logo">CF &nbsp; CASEFLOW</div><div class="eyebrow">A clearer way to work</div><h1>Every case.<br>One clear next step.</h1><p>Join your company workspace as an Account Manager. Keep evidence, blockers and decisions connected in one living case record.</p></div><div class="pill">✦ &nbsp; Verified work email required</div></aside>
+<main><h2>Create your account</h2><p class="sub">Use your company invite code to join securely.</p>
+<form id="signup" novalidate>
+<label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@company.com" maxlength="254" required>
+<label for="invite">Company invite code</label><input id="invite" name="inviteCode" type="password" autocomplete="off" placeholder="Enter the code shared by your owner" minlength="16" maxlength="256" required>
+<label for="password">Create password</label><input id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 12 characters" minlength="12" maxlength="128" required>
+<label for="confirm">Confirm password</label><input id="confirm" type="password" autocomplete="new-password" placeholder="Enter password again" minlength="12" maxlength="128" required>
+<button id="submit" type="submit">Request email verification ↗</button>
+<p class="note">Your account is created only after you open the verification link sent to your email. Admin access is reserved for the company owner.</p><div class="message" id="message" role="status" aria-live="polite"></div>
+</form><div class="foot">Already registered? <a href="/">Return to CASEFLOW</a></div></main></div>
+<script>
+const form=document.getElementById('signup'),btn=document.getElementById('submit'),msg=document.getElementById('message');
+function show(text){msg.textContent=text;msg.classList.add('show')}
+form.addEventListener('submit',async e=>{e.preventDefault();msg.classList.remove('show');
+const email=document.getElementById('email').value.trim(),inviteCode=document.getElementById('invite').value.trim(),password=document.getElementById('password').value,confirm=document.getElementById('confirm').value;
+if(password!==confirm){show('Passwords do not match.');return}if(password.length<12){show('Use a password with at least 12 characters.');return}
+btn.disabled=true;btn.textContent='Sending verification…';
+try{const csrfResponse=await fetch('/api/auth/csrf',{credentials:'same-origin',cache:'no-store'});if(!csrfResponse.ok)throw new Error('Could not start a secure session. Refresh and try again.');const {csrfToken}=await csrfResponse.json();
+const response=await fetch('/api/auth/register',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({email,inviteCode,password})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Registration could not be completed.');show(result.message||'Check your email for the verification link.');form.reset();
+}catch(err){show(err.message||'Network error. Please try again.')}finally{btn.disabled=false;btn.textContent='Request email verification ↗'}
+});
+</script></body></html>
