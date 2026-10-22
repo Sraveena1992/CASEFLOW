@@ -142,7 +142,10 @@ app.post('/api/auth/register', signupLimiter, requireCsrf, async (req, res, next
     if (!emailResponse.ok) {
       const emailError = await emailResponse.json().catch(() => ({}));
       console.error('CASEFLOW email provider rejected request:', emailResponse.status, emailError.name || 'provider_error');
-      throw new Error('Email provider request failed (HTTP ' + emailResponse.status + '). Check Resend API key and verified sender domain.');
+      await pool.query('DELETE FROM email_verification_tokens WHERE email=$1 AND token_hash=$2', [email, tokenHash]);
+      return res.status(502).json({
+        error: 'Verification email could not be sent. The owner must check that the Resend API key is valid and MAIL_FROM is an approved sender. No account was created; try again after email delivery is fixed.'
+      });
     }
     res.status(202).json({ message: 'Verification email sent if details are valid. The link expires in 30 minutes.' });
   } catch (error) { next(error); }
