@@ -138,7 +138,7 @@ app.post('/api/admin/users', requireRole('admin'), requireCsrf, async (req, res,
   const role = req.body && req.body.role;
   if (!validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
   if (password.length < 12 || password.length > 128) return res.status(400).json({ error: 'Password must be 12–128 characters.' });
-  if (!['admin', 'account_manager'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+  if (role !== 'account_manager') return res.status(400).json({ error: 'Only the company owner can be Admin. The owner can create Account Manager accounts only.' });
   try {
     const hash = await argon2.hash(password, { type: argon2.argon2id });
     const result = await pool.query('INSERT INTO users(email,password_hash,role) VALUES($1,$2,$3) RETURNING id,email,role,active,created_at', [email, hash, role]);
@@ -159,7 +159,7 @@ app.patch('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req,
   const role = req.body && req.body.role;
   if (active === undefined && role === undefined) return res.status(400).json({ error: 'Provide active and/or role.' });
   if (active !== undefined && typeof active !== 'boolean') return res.status(400).json({ error: 'active must be boolean.' });
-  if (role !== undefined && !['admin', 'account_manager'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+  if (role !== undefined && role !== 'account_manager') return res.status(400).json({ error: 'Admin ownership cannot be transferred or duplicated through user management.' });
   try {
     const current = await pool.query('SELECT id FROM users WHERE id=$1', [req.params.id]);
     if (!current.rowCount) return res.status(404).json({ error: 'User not found.' });
@@ -284,9 +284,11 @@ async function bootstrapAdmin() {
   if (!validEmail(email) || password.length < 12 || password.length > 128) throw new Error('ADMIN_EMAIL must be valid and ADMIN_PASSWORD must be 12–128 characters.');
   const count = await pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role='admin'");
   if (count.rows[0].count === 0) {
+    const existing = await pool.query('SELECT role FROM users WHERE email=$1', [email]);
+    if (existing.rowCount) throw new Error('ADMIN_EMAIL already belongs to a non-owner account. Choose the verified company owner email before first boot.');
     const hash = await argon2.hash(password, { type: argon2.argon2id });
-    await pool.query("INSERT INTO users(email,password_hash,role) VALUES($1,$2,'admin') ON CONFLICT(email) DO NOTHING", [email, hash]);
-    console.log('Initial administrator provisioned from environment settings.');
+    await pool.query("INSERT INTO users(email,password_hash,role) VALUES($1,$2,'admin')", [email, hash]);
+    console.log('Company owner Admin provisioned from environment settings.');
   }
 }
 async function start() {
