@@ -19,6 +19,7 @@ Create a Render PostgreSQL database and set these service environment variables:
 - ADMIN_EMAIL = initial administrator email
 - ADMIN_PASSWORD = unique initial password, 12–128 characters
 - COMPANY_INVITE_CODE = a privately generated random code of at least 16 characters; share only with intended company Account Managers
+- ALLOWED_EMAIL_DOMAIN = approved work-email domain(s), comma-separated if needed, e.g. `example.com, subsidiary.example.com` (do not include `@`)
 - SMTP_HOST, SMTP_PORT (usually 587), SMTP_SECURE (usually false for STARTTLS), SMTP_USER, SMTP_PASS, MAIL_FROM = credentials for an email provider that can send verification messages
 - APP_BASE_URL = the exact public base URL of this Node service, e.g. `https://your-new-service.onrender.com`
 
@@ -29,7 +30,7 @@ Do not commit secrets or share them in chat. Keep the initial password in Render
 - Company Owner (Admin): the single owner account bootstrapped from ADMIN_EMAIL and ADMIN_PASSWORD; view all cases; create/deactivate Account Manager users; assign cases; view all case records and history. Admin creation/promotion through the user-management API is blocked.
 - Account Manager: create cases and view/edit only cases owned by their account; add evidence and view history for those cases. They cannot provision users or access another manager's case by changing an ID.
 - Authentication: PostgreSQL-backed server sessions; HttpOnly cookie; Secure cookie in production; SameSite=Lax; session ID regeneration after login; Argon2id password hashes; rate limits; Helmet security headers; parameterized SQL.
-- Account Manager onboarding: `/signup.html` accepts work email, password and company invite code; a one-time verification link is emailed and expires in 30 minutes. Pending verification tokens and the invite code are stored as hashes. Public registration can create only Account Manager accounts; it cannot set or promote Admin. Invite code is initially seeded once from the private `COMPANY_INVITE_CODE` environment variable; changing that variable later does not rotate the stored code.
+- Account Manager onboarding: `/signup.html` accepts work email, password and company invite code; a one-time verification link is emailed and expires in 30 minutes. Pending verification tokens and the invite code are stored as hashes. Signup also requires an exact match to one of the configured `ALLOWED_EMAIL_DOMAIN` domains. Public registration can create only Account Manager accounts; it cannot set or promote Admin. Invite code is initially seeded once from the private `COMPANY_INVITE_CODE` environment variable; changing that variable later does not rotate the stored code.
 - Data isolation: authorization is enforced on the API, not by hiding browser buttons. Cases, evidence, and history are stored in PostgreSQL, not localStorage.
 
 ## API routes currently scaffolded
