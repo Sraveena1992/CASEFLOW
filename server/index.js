@@ -317,6 +317,31 @@ app.post('/api/cases/:id/evidence', requireRole('account_manager'), requireCsrf,
   } finally { client.release(); }
 });
 
+app.post('/api/cases/:id/transition-review', requireRole('account_manager'), requireCsrf, getCaseForUser, async (req, res, next) => {
+  const accepted = req.body && req.body.accepted;
+  const stateValue = typeof (req.body && req.body.state) === 'string' ? req.body.state.trim() : '';
+  const blocker = typeof (req.body && req.body.blocker) === 'string' ? req.body.blocker.trim() : '';
+  const nextAction = typeof (req.body && req.body.next_action) === 'string' ? req.body.next_action.trim() : '';
+  const reason = typeof (req.body && req.body.reason) === 'string' ? req.body.reason.trim() : '';
+  if (typeof accepted !== 'boolean') return res.status(400).json({ error: 'accepted must be true or false.' });
+  if (accepted && (!stateValue || !blocker || !nextAction || stateValue.length > 100 || blocker.length > 10000 || nextAction.length > 10000)) return res.status(400).json({ error: 'A valid state, blocker and next action are required to apply a proposal.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (accepted) {
+      await client.query('UPDATE cases SET state=$2,blocker=$3,next_action=$4,updated_at=NOW() WHERE id=$1', [req.caseRecord.id, stateValue, blocker, nextAction]);
+      await recordHistory(client, req.caseRecord.id, req.session.user.id, 'transition_confirmed', 'Account Manager reviewed and applied an AI-proposed transition', { state: stateValue, blocker, next_action: nextAction, reason });
+    } else {
+      await recordHistory(client, req.caseRecord.id, req.session.user.id, 'transition_rejected', 'Account Manager reviewed and rejected an AI-proposed transition', { reason });
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally { client.release(); }
+});
+
 app.post('/api/cases/:id/review-request', requireRole('admin'), requireCsrf, getCaseForUser, async (req, res, next) => {
   const message = typeof (req.body && req.body.message) === 'string' ? req.body.message.trim() : '';
   if (!message || message.length > 5000) return res.status(400).json({ error: 'A review request is required (max 5,000 characters).' });
