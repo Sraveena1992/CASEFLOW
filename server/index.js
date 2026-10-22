@@ -47,16 +47,37 @@ const loginLimiter = rateLimit({
 });
 function normalizeEmail(v) { return typeof v === 'string' ? v.trim().toLowerCase() : ''; }
 function validEmail(v) { return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'Authentication required.' });
-  next();
+async function requireAuth(req, res, next) {
+  try {
+    if (!req.session.user) return res.status(401).json({ error: 'Authentication required.' });
+    // Re-check role and active status on each protected request so a deactivated/demoted user
+    // cannot keep using a stale role stored in an existing session.
+    const result = await pool.query('SELECT id,email,role,active FROM users WHERE id=$1', [req.session.user.id]);
+    const user = result.rows[0];
+    if (!user || !user.active) {
+      await new Promise(resolve => req.session.destroy(() => resolve()));
+      return res.status(401).json({ error: 'Session is no longer valid. Sign in again.' });
+    }
+    req.session.user = { id: String(user.id), email: user.email, role: user.role };
+    next();
+  } catch (error) { next(error); }
 }
 function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Authentication required.' });
+  return (req, res, next) => requireAuth(req, res, error => {
+    if (error) return next(error);
+    if (res.headersSent) return;
     if (!roles.includes(req.session.user.role)) return res.status(403).json({ error: 'You do not have permission for this action.' });
     next();
-  };
+  });
+}
+function requireCsrf(req, res, next) {
+  const expected = req.session.csrfToken;
+  const supplied = req.get('X-CSRF-Token');
+  if (!expected || !supplied || expected.length !== supplied.length ||
+      !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(supplied))) {
+    return res.status(403).json({ error: 'CSRF token missing or invalid. Refresh your session and try again.' });
+  }
+  next();
 }
 async function getCaseForUser(req, res, next) {
   try {
@@ -77,7 +98,12 @@ function recordHistory(client, caseId, actorId, type, summary, details = {}) {
 }
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'caseflow-api' }));
 
-app.post('/api/auth/login', loginLimiter, async (req, res, next) => {
+app.get('/api/auth/csrf', (req, res) => {
+  if (!req.session.csrfToken) req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+  res.set('Cache-Control', 'no-store');
+  res.json({ csrfToken: req.session.csrfToken });
+});
+app.post('/api/auth/login', loginLimiter, requireCsrf, async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body && req.body.email);
     const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
@@ -88,11 +114,12 @@ app.post('/api/auth/login', loginLimiter, async (req, res, next) => {
     if (!matches) return res.status(401).json({ error: 'Email or password is incorrect.' });
     await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()));
     req.session.user = { id: String(user.id), email: user.email, role: user.role };
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
     res.set('Cache-Control', 'no-store');
     res.json({ user: req.session.user });
   } catch (error) { next(error); }
 });
-app.post('/api/auth/logout', requireAuth, async (req, res, next) => {
+app.post('/api/auth/logout', requireAuth, requireCsrf, async (req, res, next) => {
   try {
     await new Promise((resolve, reject) => req.session.destroy(err => err ? reject(err) : resolve()));
     res.clearCookie('caseflow.sid', { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/' });
@@ -105,7 +132,7 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 });
 
 // No public registration: only an authenticated administrator can provision users.
-app.post('/api/admin/users', requireRole('admin'), async (req, res, next) => {
+app.post('/api/admin/users', requireRole('admin'), requireCsrf, async (req, res, next) => {
   const email = normalizeEmail(req.body && req.body.email);
   const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
   const role = req.body && req.body.role;
@@ -127,7 +154,7 @@ app.get('/api/admin/users', requireRole('admin'), async (_req, res, next) => {
     res.json({ users: result.rows });
   } catch (error) { next(error); }
 });
-app.patch('/api/admin/users/:id', requireRole('admin'), async (req, res, next) => {
+app.patch('/api/admin/users/:id', requireRole('admin'), requireCsrf, async (req, res, next) => {
   const active = req.body && req.body.active;
   const role = req.body && req.body.role;
   if (active === undefined && role === undefined) return res.status(400).json({ error: 'Provide active and/or role.' });
@@ -152,7 +179,7 @@ app.get('/api/cases', requireAuth, async (req, res, next) => {
     res.json({ cases: result.rows });
   } catch (error) { next(error); }
 });
-app.post('/api/cases', requireAuth, async (req, res, next) => {
+app.post('/api/cases', requireAuth, requireCsrf, async (req, res, next) => {
   const title = typeof (req.body && req.body.title) === 'string' ? req.body.title.trim() : '';
   const description = typeof (req.body && req.body.description) === 'string' ? req.body.description.trim() : '';
   if (!title || title.length > 200 || description.length > 10000) return res.status(400).json({ error: 'Title is required (max 200 characters); description max is 10,000 characters.' });
@@ -177,7 +204,7 @@ app.get('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) =>
     res.json({ case: req.caseRecord, evidence: results[0].rows, history: results[1].rows });
   } catch (error) { next(error); }
 });
-app.patch('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) => {
+app.patch('/api/cases/:id', requireAuth, requireCsrf, getCaseForUser, async (req, res, next) => {
   const allowed = ['title', 'description', 'state', 'blocker', 'next_action'];
   const updates = {};
   for (const key of allowed) if (typeof (req.body && req.body[key]) === 'string') updates[key] = req.body[key].trim();
@@ -198,7 +225,7 @@ app.patch('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) 
     await client.query('ROLLBACK'); next(error);
   } finally { client.release(); }
 });
-app.post('/api/cases/:id/evidence', requireAuth, getCaseForUser, async (req, res, next) => {
+app.post('/api/cases/:id/evidence', requireAuth, requireCsrf, getCaseForUser, async (req, res, next) => {
   const content = typeof (req.body && req.body.content) === 'string' ? req.body.content.trim() : '';
   const sourceLabel = typeof (req.body && req.body.source_label) === 'string' ? req.body.source_label.trim() : '';
   if (!content || content.length > 20000 || sourceLabel.length > 200) return res.status(400).json({ error: 'Evidence text is required (max 20,000 characters); source label max is 200.' });
