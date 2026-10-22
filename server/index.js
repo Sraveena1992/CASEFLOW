@@ -7,6 +7,7 @@ const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const argon2 = require('argon2');
+const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
 
@@ -14,8 +15,8 @@ const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const port = Number(process.env.PORT || 3000);
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-if (isProduction && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD)) {
-  throw new Error('SESSION_SECRET, ADMIN_EMAIL, and ADMIN_PASSWORD must be configured in production');
+if (isProduction && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD || !process.env.COMPANY_INVITE_CODE)) {
+  throw new Error('SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, and COMPANY_INVITE_CODE must be configured in production');
 }
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -41,6 +42,8 @@ app.use(session({
   resave: false, saveUninitialized: false, rolling: true,
   cookie: { httpOnly: true, secure: isProduction, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000, path: '/' }
 }));
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false });
+const verifyLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false });
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false,
   message: { error: 'Too many login attempts. Try again later.' }
@@ -103,6 +106,50 @@ app.get('/api/auth/csrf', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ csrfToken: req.session.csrfToken });
 });
+
+app.post('/api/auth/register', signupLimiter, requireCsrf, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body && req.body.email);
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const inviteCode = typeof req.body?.inviteCode === 'string' ? req.body.inviteCode.trim() : '';
+    if (!validEmail(email) || password.length < 12 || password.length > 128 || inviteCode.length < 16 || inviteCode.length > 256) return res.status(400).json({ error: 'Enter a valid work email, a 12–128 character password, and a valid company invite code.' });
+    const configured = await pool.query('SELECT invite_code_hash FROM company_settings WHERE id=1');
+    const storedHash = configured.rows[0]?.invite_code_hash;
+    const suppliedHash = crypto.createHash('sha256').update(inviteCode).digest('hex');
+    if (!storedHash || !crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(suppliedHash))) return res.status(403).json({ error: 'Company invite code is invalid.' });
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS || !process.env.MAIL_FROM || !process.env.APP_BASE_URL) return res.status(503).json({ error: 'Email verification is not configured yet. Contact the company owner.' });
+    if ((await pool.query('SELECT id FROM users WHERE email=$1', [email])).rowCount) return res.status(409).json({ error: 'An account with this email already exists.' });
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    await pool.query('DELETE FROM email_verification_tokens WHERE email=$1 OR expires_at<NOW() OR consumed_at IS NOT NULL', [email]);
+    await pool.query("INSERT INTO email_verification_tokens(email,token_hash,password_hash,expires_at) VALUES($1,$2,$3,NOW()+INTERVAL '30 minutes')", [email, tokenHash, passwordHash]);
+    const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: process.env.SMTP_SECURE === 'true', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+    const verifyUrl = new URL('/api/auth/verify-email', process.env.APP_BASE_URL);
+    verifyUrl.searchParams.set('token', rawToken);
+    await transporter.sendMail({ from: process.env.MAIL_FROM, to: email, subject: 'Verify your CASEFLOW work email', text: 'Verify your CASEFLOW Account Manager email within 30 minutes: ' + verifyUrl.toString() + '\nIf you did not request this, ignore this email.' });
+    res.status(202).json({ message: 'Verification email sent if details are valid. The link expires in 30 minutes.' });
+  } catch (error) { next(error); }
+});
+app.get('/api/auth/verify-email', verifyLimiter, async (req, res, next) => {
+  const rawToken = typeof req.query.token === 'string' ? req.query.token : '';
+  if (!/^[a-f0-9]{64}$/.test(rawToken)) return res.status(400).send('Verification link is invalid or expired. Return to CASEFLOW and register again.');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found = await client.query('SELECT id,email,password_hash FROM email_verification_tokens WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>NOW() FOR UPDATE', [tokenHash]);
+    if (!found.rowCount) { await client.query('ROLLBACK'); return res.status(400).send('Verification link is invalid or expired. Return to CASEFLOW and register again.'); }
+    const pending = found.rows[0];
+    await client.query("INSERT INTO users(email,password_hash,role) VALUES($1,$2,'account_manager')", [pending.email, pending.password_hash]);
+    await client.query('UPDATE email_verification_tokens SET consumed_at=NOW() WHERE id=$1', [pending.id]);
+    await client.query('COMMIT');
+    res.set('Cache-Control', 'no-store');
+    res.send('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Email verified · CASEFLOW</title><body style="font:16px system-ui;max-width:640px;margin:12vh auto;padding:24px;color:#3A0F34"><h1>Email verified</h1><p>Your CASEFLOW Account Manager account is ready. Return to CASEFLOW sign-in to log in.</p></body></html>');
+  } catch (error) { await client.query('ROLLBACK'); if (error.code === '23505') return res.status(409).send('An account with this email already exists.'); next(error); }
+  finally { client.release(); }
+});
+
 app.post('/api/auth/login', loginLimiter, requireCsrf, async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body && req.body.email);
@@ -291,10 +338,24 @@ async function bootstrapAdmin() {
     console.log('Company owner Admin provisioned from environment settings.');
   }
 }
+
+async function bootstrapInviteCode() {
+  const code = process.env.COMPANY_INVITE_CODE;
+  if (!code) { if (isProduction) throw new Error('COMPANY_INVITE_CODE is required for Account Manager self-registration.'); return; }
+  if (code.length < 16 || code.length > 256) throw new Error('COMPANY_INVITE_CODE must be 16–256 characters.');
+  const hash = crypto.createHash('sha256').update(code).digest('hex');
+  const result = await pool.query('SELECT invite_code_hash FROM company_settings WHERE id=1');
+  if (!result.rows[0].invite_code_hash) {
+    await pool.query('UPDATE company_settings SET invite_code_hash=$1,invite_code_updated_at=NOW(),updated_at=NOW() WHERE id=1', [hash]);
+    console.log('Initial company invite code hash stored.');
+  } else if (result.rows[0].invite_code_hash !== hash) console.warn('Configured invite code differs from stored code; stored code remains active.');
+}
+
 async function start() {
   await pool.query('SELECT 1');
   await pool.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
   await bootstrapAdmin();
+  await bootstrapInviteCode();
   app.listen(port, () => console.log('CASEFLOW server listening on port ' + port));
 }
 start().catch(error => {
