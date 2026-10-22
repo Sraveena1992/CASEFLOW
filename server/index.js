@@ -195,6 +195,30 @@ app.post('/api/cases', requireAuth, requireCsrf, async (req, res, next) => {
     await client.query('ROLLBACK'); next(error);
   } finally { client.release(); }
 });
+app.patch('/api/cases/:id/assignment', requireRole('admin'), requireCsrf, async (req, res, next) => {
+  const ownerId = req.body && req.body.owner_user_id;
+  if (!Number.isSafeInteger(Number(ownerId)) || Number(ownerId) < 1) return res.status(400).json({ error: 'owner_user_id must be a valid user ID.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const target = await client.query("SELECT id FROM users WHERE id=$1 AND active=TRUE AND role='account_manager'", [ownerId]);
+    if (!target.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cases can only be assigned to an active Account Manager.' });
+    }
+    const updated = await client.query('UPDATE cases SET owner_user_id=$2,updated_at=NOW() WHERE id=$1 RETURNING *', [req.params.id, ownerId]);
+    if (!updated.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Case not found.' });
+    }
+    await recordHistory(client, req.params.id, req.session.user.id, 'case_assigned', 'Case assigned to Account Manager', { owner_user_id: Number(ownerId) });
+    await client.query('COMMIT');
+    res.json({ case: updated.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally { client.release(); }
+});
 app.get('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) => {
   try {
     const results = await Promise.all([
