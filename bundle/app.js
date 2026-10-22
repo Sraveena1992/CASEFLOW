@@ -282,7 +282,26 @@ async function showUsers() {
   try {
     const response = await api("/api/admin/users");
     state.users = response.users || [];
-    $("cases-container").innerHTML = '<div class="cf-page"><div class="cf-topline"><div><p class="cf-eyebrow">Team access</p><h1 class="cf-title">Account Managers</h1><p class="cf-subtitle">Account status and role overview.</p></div><button class="cf-button" data-action="back">← Dashboard</button></div><div class="cf-scroll"><table class="cf-table"><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Created</th></tr></thead><tbody>' + state.users.map((u) => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.role) + '</td><td>' + (u.active ? "Active" : "Disabled") + '</td><td>' + esc(date(u.created_at)) + '</td></tr>').join("") + '</tbody></table></div></div>';
+    $("cases-container").innerHTML = '<div class="cf-page"><div class="cf-topline"><div><p class="cf-eyebrow">Team access</p><h1 class="cf-title">Account Managers</h1><p class="cf-subtitle">Create an Account Manager account directly as the authenticated Admin. This method does not depend on email delivery.</p></div><button class="cf-button" data-action="back">← Dashboard</button></div><section class="cf-card"><h2>Create Account Manager</h2><p class="cf-muted">Set an initial password of at least 12 characters. Share it with the intended user through a private channel; they can sign in immediately. Do not reuse your own password.</p><form id="create-manager-form" class="cf-form"><div class="cf-field"><label for="manager-email">Account Manager email</label><input id="manager-email" type="email" autocomplete="off" maxlength="254" required placeholder="manager@company.com"></div><div class="cf-field"><label for="manager-password">Initial password (12–128 characters)</label><input id="manager-password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required placeholder="Create a unique initial password"></div><div class="cf-form-actions"><button class="cf-button cf-button-primary" type="submit">＋ Create account</button></div><p id="manager-create-message" class="cf-muted" role="status"></p></form></section><div class="cf-section-heading"><h2>Team accounts</h2><span class="cf-muted">' + state.users.length + ' account(s)</span></div><div class="cf-scroll"><table class="cf-table"><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Created</th></tr></thead><tbody>' + state.users.map((u) => '<tr><td>' + esc(u.email) + '</td><td>' + esc(u.role) + '</td><td>' + (u.active ? "Active" : "Disabled") + '</td><td>' + esc(date(u.created_at)) + '</td></tr>').join("") + '</tbody></table></div></div>';
+    $("create-manager-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('[type="submit"]');
+      const message = $("manager-create-message");
+      const email = $("manager-email").value.trim();
+      const password = $("manager-password").value;
+      button.disabled = true;
+      message.textContent = "Creating account…";
+      try {
+        await api("/api/admin/users", {method:"POST", body:JSON.stringify({email, password, role:"account_manager"})});
+        form.reset();
+        message.textContent = "Account created. The Account Manager can now sign in at /login.html using the email and initial password you set.";
+        await showUsers();
+      } catch (error) {
+        message.textContent = error.message || "Could not create account.";
+        button.disabled = false;
+      }
+    });
   } catch (error) { $("cases-container").innerHTML = '<div class="cf-page"><h1 class="cf-title">Could not load team accounts</h1><p class="cf-subtitle">' + esc(error.message) + '</p><button class="cf-button" data-action="back">← Dashboard</button></div>'; }
 }
 async function showAudit() {
