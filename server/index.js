@@ -7,7 +7,6 @@ const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const argon2 = require('argon2');
-const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
 
@@ -120,17 +119,31 @@ app.post('/api/auth/register', signupLimiter, requireCsrf, async (req, res, next
     const storedHash = configured.rows[0]?.invite_code_hash;
     const suppliedHash = crypto.createHash('sha256').update(inviteCode).digest('hex');
     if (!storedHash || !crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(suppliedHash))) return res.status(403).json({ error: 'Company invite code is invalid.' });
-    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS || !process.env.MAIL_FROM || !process.env.APP_BASE_URL) return res.status(503).json({ error: 'Email verification is not configured yet. Contact the company owner.' });
+    if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM || !process.env.APP_BASE_URL) return res.status(503).json({ error: 'Email verification is not configured yet. Contact the company owner.' });
     if ((await pool.query('SELECT id FROM users WHERE email=$1', [email])).rowCount) return res.status(409).json({ error: 'An account with this email already exists.' });
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     await pool.query('DELETE FROM email_verification_tokens WHERE email=$1 OR expires_at<NOW() OR consumed_at IS NOT NULL', [email]);
     await pool.query("INSERT INTO email_verification_tokens(email,token_hash,password_hash,expires_at) VALUES($1,$2,$3,NOW()+INTERVAL '30 minutes')", [email, tokenHash, passwordHash]);
-    const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: process.env.SMTP_SECURE === 'true', auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
     const verifyUrl = new URL('/api/auth/verify-email', process.env.APP_BASE_URL);
     verifyUrl.searchParams.set('token', rawToken);
-    await transporter.sendMail({ from: process.env.MAIL_FROM, to: email, subject: 'Verify your CASEFLOW work email', text: 'Verify your CASEFLOW Account Manager email within 30 minutes: ' + verifyUrl.toString() + '\nIf you did not request this, ignore this email.' });
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: process.env.MAIL_FROM,
+        to: [email],
+        subject: 'Verify your CASEFLOW work email',
+        text: 'Verify your CASEFLOW Account Manager email within 30 minutes: ' + verifyUrl.toString() + '\nIf you did not request this, ignore this email.'
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!emailResponse.ok) {
+      const emailError = await emailResponse.json().catch(() => ({}));
+      console.error('CASEFLOW email provider rejected request:', emailResponse.status, emailError.name || 'provider_error');
+      throw new Error('Email provider request failed (HTTP ' + emailResponse.status + '). Check Resend API key and verified sender domain.');
+    }
     res.status(202).json({ message: 'Verification email sent if details are valid. The link expires in 30 minutes.' });
   } catch (error) { next(error); }
 });
