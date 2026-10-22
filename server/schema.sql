@@ -40,3 +40,6 @@ CREATE TABLE IF NOT EXISTS case_history (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS case_history_case_idx ON case_history(case_id, created_at);
+
+-- A company has exactly one owner/Admin account. Provisioning additional Admins is not supported.
+CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin_idx ON users ((role)) WHERE role = 'admin';
