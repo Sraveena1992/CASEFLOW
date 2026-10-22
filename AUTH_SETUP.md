@@ -30,11 +30,11 @@ Do not commit secrets or share them in chat. Keep the initial password in Render
 
 ## API routes currently scaffolded
 
-- POST /api/auth/login — JSON body with email and password
+- GET /api/auth/csrf — retrieve a CSRF token before login or a state-changing request\n- POST /api/auth/login — JSON body with email and password plus X-CSRF-Token header
 - POST /api/auth/logout
 - GET /api/auth/me
 - GET /api/cases and POST /api/cases
-- GET /api/cases/:id and PATCH /api/cases/:id
+- GET /api/cases/:id and PATCH /api/cases/:id\n- PATCH /api/cases/:id/assignment — admin-only; assign to an active Account Manager
 - POST /api/cases/:id/evidence
 - GET /api/admin/users, POST /api/admin/users, PATCH /api/admin/users/:id
 
@@ -44,7 +44,7 @@ Do not commit secrets or share them in chat. Keep the initial password in Render
 2. Create an Account Manager through the admin-only route; verify that account cannot call /api/admin/users.
 3. Create a case under Manager A; log in as Manager B and verify the case is absent and direct GET/PATCH requests return 404.
 4. Verify unauthenticated case requests return 401, invalid passwords are rate-limited, and logout invalidates the session.
-5. Add and test CSRF protection for all state-changing routes before production use.
+5. The API now checks CSRF tokens on login and state-changing routes. Test token rotation after login, invalid-token rejection, and logout.
 6. Connect the UI login screen and replace the existing localStorage-only case workflow with these API calls. The current UI remains a static/local prototype until this integration is complete.
 7. Test evidence, history, human-confirmed state transitions, mobile layout, and Anna-host compatibility. Switch the public Render URL only after acceptance.
 
