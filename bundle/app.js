@@ -120,9 +120,10 @@ function renderNav() {
   const tabs = isAdmin()
     ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"]]
     : [["all","My cases"]];
-  return '<nav class="cf-nav" aria-label="Workspace sections">' + tabs.map((t) =>
-    '<button type="button" class="' + (state.filter === t[0] ? "active" : "") + '" data-action="filter" data-filter="' + t[0] + '">' + t[1] + '</button>'
-  ).join("") + "</nav>";
+  return '<nav class="cf-nav" aria-label="Workspace sections">' + tabs.map((t) => {
+    const action = t[0] === "users" || t[0] === "audit" ? t[0] : "filter";
+    return '<button type="button" class="' + (state.filter === t[0] ? "active" : "") + '" data-action="' + action + '" data-filter="' + t[0] + '">' + t[1] + '</button>';
+  }).join("") + "</nav>";
 }
 function renderStats(items) {
   const list = items || state.cases;
