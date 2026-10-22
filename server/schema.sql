@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
   id BIGSERIAL PRIMARY KEY,
   email TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   consumed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
