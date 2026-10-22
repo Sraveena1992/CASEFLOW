@@ -19,11 +19,11 @@ Create a Render PostgreSQL database and set these service environment variables:
 - ADMIN_EMAIL = initial administrator email
 - ADMIN_PASSWORD = unique initial password, 12–128 characters
 
-Do not commit secrets or share them in chat. Keep the initial password in Render environment settings only. After first successful login, remove ADMIN_PASSWORD from the service environment; the database account remains. The server only provisions the initial admin when no administrator exists.
+Do not commit secrets or share them in chat. Keep the initial password in Render environment settings only. After first successful login, remove ADMIN_PASSWORD from the service environment; the database account remains. The server only provisions the initial owner/Admin when no administrator exists; user-management APIs can create Account Managers only, and the database enforces a single Admin role. Set ADMIN_EMAIL to the actual company owner's email before first boot; this environment bootstrap alone does not independently verify the person's identity.
 
 ## Roles and access rules
 
-- Admin: view all cases; create/deactivate users; assign admin or account_manager role; view all case records and history.
+- Company Owner (Admin): the single owner account bootstrapped from ADMIN_EMAIL and ADMIN_PASSWORD; view all cases; create/deactivate Account Manager users; assign cases; view all case records and history. Admin creation/promotion through the user-management API is blocked.
 - Account Manager: create cases and view/edit only cases owned by their account; add evidence and view history for those cases. They cannot provision users or access another manager's case by changing an ID.
 - Authentication: PostgreSQL-backed server sessions; HttpOnly cookie; Secure cookie in production; SameSite=Lax; session ID regeneration after login; Argon2id password hashes; login rate limiting; Helmet security headers; parameterized SQL; no public sign-up.
 - Data isolation: authorization is enforced on the API, not by hiding browser buttons. Cases, evidence, and history are stored in PostgreSQL, not localStorage.
@@ -41,7 +41,7 @@ Do not commit secrets or share them in chat. Keep the initial password in Render
 ## Required work before public cutover
 
 1. Verify the new service's health check and initial administrator sign-in.
-2. Create an Account Manager through the admin-only route; verify that account cannot call /api/admin/users.
+2. Create an Account Manager through the owner-only route; verify that account cannot call /api/admin/users.
 3. Create a case under Manager A; log in as Manager B and verify the case is absent and direct GET/PATCH requests return 404.
 4. Verify unauthenticated case requests return 401, invalid passwords are rate-limited, and logout invalidates the session.
 5. The API now checks CSRF tokens on login and state-changing routes. Test token rotation after login, invalid-token rejection, and logout.
