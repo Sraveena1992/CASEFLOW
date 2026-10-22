@@ -319,7 +319,7 @@ async function main() {
   addStyles();
   state.user = window.__CASEFLOW_USER__ || null;
   if (!state.user) {
-    document.addEventListener("caseflow:authenticated", () => { state.user = window.__CASEFLOW_USER__ || null; startWorkspace(); }, {once:true});
+    window.addEventListener("caseflow:authenticated", () => { state.user = window.__CASEFLOW_USER__ || null; startWorkspace(); }, {once:true});
     return;
   }
   await startWorkspace();
