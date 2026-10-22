@@ -41,5 +41,23 @@ CREATE TABLE IF NOT EXISTS case_history (
 );
 CREATE INDEX IF NOT EXISTS case_history_case_idx ON case_history(case_id, created_at);
 
+-- Self-service Account Manager onboarding. Invitation and verification secrets are stored as hashes.
+CREATE TABLE IF NOT EXISTS company_settings (
+  id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  invite_code_hash TEXT,
+  invite_code_updated_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO company_settings(id) VALUES(1) ON CONFLICT (id) DO NOTHING;
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS email_verification_email_idx ON email_verification_tokens(email, created_at DESC);
+
 -- A company has exactly one owner/Admin account. Provisioning additional Admins is not supported.
 CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin_idx ON users ((role)) WHERE role = 'admin';
