@@ -8,20 +8,7 @@
   <title>CASEFLOW — Your Situations, in Motion</title>
 
   <script src="./anna-tool-ids.js"></script>
-  <script>
-    document.documentElement.classList.add('auth-checking');
-    (async function requireCaseflowSession(){
-      try {
-        const response = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
-        if (!response.ok) { window.location.replace('/login.html'); return; }
-        const data = await response.json();
-        window.__CASEFLOW_USER__ = data.user;
-        document.documentElement.classList.remove('auth-checking');
-      } catch (_) {
-        window.location.replace('/login.html');
-      }
-    })();
-  </script>
+  <script src="/auth-guard.js"></script>
 
   <style>
     :root {
@@ -946,32 +933,7 @@
     </main>
   </div>
 
-  <script>
-    (function setupSignOut(){
-      const button = document.getElementById('auth-logout');
-      const userLabel = document.getElementById('auth-user');
-      if (userLabel && window.__CASEFLOW_USER__) {
-        userLabel.textContent = window.__CASEFLOW_USER__.email + ' · ' + (window.__CASEFLOW_USER__.role === 'admin' ? 'Admin' : 'Account Manager');
-      }
-      if (!button) return;
-      button.addEventListener('click', async function(){
-        button.disabled = true;
-        button.textContent = 'Signing out…';
-        try {
-          const csrfResponse = await fetch('/api/auth/csrf', { credentials:'same-origin', cache:'no-store' });
-          if (!csrfResponse.ok) throw new Error('Could not start secure sign-out.');
-          const csrf = await csrfResponse.json();
-          const response = await fetch('/api/auth/logout', { method:'POST', credentials:'same-origin', headers:{ 'X-CSRF-Token':csrf.csrfToken } });
-          if (!response.ok) throw new Error('Sign-out failed. Please refresh and try again.');
-          window.location.replace('/login.html');
-        } catch (error) {
-          button.disabled = false;
-          button.textContent = 'Sign out ↗';
-          window.alert(error.message || 'Could not sign out.');
-        }
-      });
-    })();
-  </script>
+  <script src="/logout.js" defer></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
