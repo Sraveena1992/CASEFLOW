@@ -1,0 +1,251 @@
+'use strict';
+const path = require('node:path');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const express = require('express');
+const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
+const argon2 = require('argon2');
+const helmet = require('helmet');
+const { rateLimit } = require('express-rate-limit');
+
+const app = express();
+const isProduction = process.env.NODE_ENV === 'production';
+const port = Number(process.env.PORT || 3000);
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+if (isProduction && (!process.env.SESSION_SECRET || !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD)) {
+  throw new Error('SESSION_SECRET, ADMIN_EMAIL, and ADMIN_PASSWORD must be configured in production');
+}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'disable' ? false : (isProduction ? { rejectUnauthorized: false } : undefined),
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
+app.disable('x-powered-by');
+if (isProduction) app.set('trust proxy', 1);
+app.use(helmet({
+  contentSecurityPolicy: { directives: {
+    defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", 'data:', 'https:'], connectSrc: ["'self'"], objectSrc: ["'none'"],
+    frameAncestors: ["'none'"], upgradeInsecureRequests: isProduction ? [] : null
+  }}
+}));
+app.use(express.json({ limit: '256kb' }));
+app.use(session({
+  name: 'caseflow.sid',
+  secret: process.env.SESSION_SECRET || crypto.randomBytes(48).toString('hex'),
+  store: new PgSession({ pool, tableName: 'user_sessions', createTableIfMissing: true, pruneSessionInterval: 15 * 60 }),
+  resave: false, saveUninitialized: false, rolling: true,
+  cookie: { httpOnly: true, secure: isProduction, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000, path: '/' }
+}));
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false,
+  message: { error: 'Too many login attempts. Try again later.' }
+});
+function normalizeEmail(v) { return typeof v === 'string' ? v.trim().toLowerCase() : ''; }
+function validEmail(v) { return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Authentication required.' });
+  next();
+}
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Authentication required.' });
+    if (!roles.includes(req.session.user.role)) return res.status(403).json({ error: 'You do not have permission for this action.' });
+    next();
+  };
+}
+async function getCaseForUser(req, res, next) {
+  try {
+    const params = [req.params.id];
+    let sql = 'SELECT * FROM cases WHERE id = $1';
+    if (req.session.user.role !== 'admin') { params.push(req.session.user.id); sql += ' AND owner_user_id = $2'; }
+    const result = await pool.query(sql, params);
+    if (!result.rowCount) return res.status(404).json({ error: 'Case not found.' });
+    req.caseRecord = result.rows[0];
+    next();
+  } catch (error) { next(error); }
+}
+function recordHistory(client, caseId, actorId, type, summary, details = {}) {
+  return client.query(
+    'INSERT INTO case_history(case_id,actor_user_id,event_type,summary,details) VALUES($1,$2,$3,$4,$5)',
+    [caseId, actorId, type, summary, JSON.stringify(details)]
+  );
+}
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'caseflow-api' }));
+
+app.post('/api/auth/login', loginLimiter, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body && req.body.email);
+    const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
+    if (!validEmail(email) || !password || password.length > 1024) return res.status(400).json({ error: 'Enter a valid email and password.' });
+    const result = await pool.query('SELECT id,email,password_hash,role,active FROM users WHERE email=$1', [email]);
+    const user = result.rows[0];
+    const matches = user && user.active ? await argon2.verify(user.password_hash, password).catch(() => false) : false;
+    if (!matches) return res.status(401).json({ error: 'Email or password is incorrect.' });
+    await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()));
+    req.session.user = { id: String(user.id), email: user.email, role: user.role };
+    res.set('Cache-Control', 'no-store');
+    res.json({ user: req.session.user });
+  } catch (error) { next(error); }
+});
+app.post('/api/auth/logout', requireAuth, async (req, res, next) => {
+  try {
+    await new Promise((resolve, reject) => req.session.destroy(err => err ? reject(err) : resolve()));
+    res.clearCookie('caseflow.sid', { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/' });
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ user: req.session.user });
+});
+
+// No public registration: only an authenticated administrator can provision users.
+app.post('/api/admin/users', requireRole('admin'), async (req, res, next) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
+  const role = req.body && req.body.role;
+  if (!validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+  if (password.length < 12 || password.length > 128) return res.status(400).json({ error: 'Password must be 12–128 characters.' });
+  if (!['admin', 'account_manager'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+  try {
+    const hash = await argon2.hash(password, { type: argon2.argon2id });
+    const result = await pool.query('INSERT INTO users(email,password_hash,role) VALUES($1,$2,$3) RETURNING id,email,role,active,created_at', [email, hash, role]);
+    res.status(201).json({ user: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') return res.status(409).json({ error: 'A user with that email already exists.' });
+    next(error);
+  }
+});
+app.get('/api/admin/users', requireRole('admin'), async (_req, res, next) => {
+  try {
+    const result = await pool.query('SELECT id,email,role,active,created_at FROM users ORDER BY created_at DESC');
+    res.json({ users: result.rows });
+  } catch (error) { next(error); }
+});
+app.patch('/api/admin/users/:id', requireRole('admin'), async (req, res, next) => {
+  const active = req.body && req.body.active;
+  const role = req.body && req.body.role;
+  if (active === undefined && role === undefined) return res.status(400).json({ error: 'Provide active and/or role.' });
+  if (active !== undefined && typeof active !== 'boolean') return res.status(400).json({ error: 'active must be boolean.' });
+  if (role !== undefined && !['admin', 'account_manager'].includes(role)) return res.status(400).json({ error: 'Invalid role.' });
+  try {
+    const current = await pool.query('SELECT id FROM users WHERE id=$1', [req.params.id]);
+    if (!current.rowCount) return res.status(404).json({ error: 'User not found.' });
+    if (String(req.params.id) === String(req.session.user.id) && (active === false || role === 'account_manager')) {
+      return res.status(400).json({ error: 'You cannot deactivate or demote your own active administrator session.' });
+    }
+    const result = await pool.query('UPDATE users SET active=COALESCE($2,active),role=COALESCE($3,role),updated_at=NOW() WHERE id=$1 RETURNING id,email,role,active,created_at', [req.params.id, active === undefined ? null : active, role || null]);
+    res.json({ user: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/cases', requireAuth, async (req, res, next) => {
+  try {
+    const result = req.session.user.role === 'admin'
+      ? await pool.query('SELECT id,title,description,state,blocker,next_action,owner_user_id,created_at,updated_at FROM cases ORDER BY updated_at DESC')
+      : await pool.query('SELECT id,title,description,state,blocker,next_action,owner_user_id,created_at,updated_at FROM cases WHERE owner_user_id=$1 ORDER BY updated_at DESC', [req.session.user.id]);
+    res.json({ cases: result.rows });
+  } catch (error) { next(error); }
+});
+app.post('/api/cases', requireAuth, async (req, res, next) => {
+  const title = typeof (req.body && req.body.title) === 'string' ? req.body.title.trim() : '';
+  const description = typeof (req.body && req.body.description) === 'string' ? req.body.description.trim() : '';
+  if (!title || title.length > 200 || description.length > 10000) return res.status(400).json({ error: 'Title is required (max 200 characters); description max is 10,000 characters.' });
+  const id = crypto.randomUUID();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const created = await client.query('INSERT INTO cases(id,title,description,owner_user_id) VALUES($1,$2,$3,$4) RETURNING *', [id, title, description, req.session.user.id]);
+    await recordHistory(client, id, req.session.user.id, 'case_created', 'Case created', { title });
+    await client.query('COMMIT');
+    res.status(201).json({ case: created.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK'); next(error);
+  } finally { client.release(); }
+});
+app.get('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) => {
+  try {
+    const results = await Promise.all([
+      pool.query('SELECT id,created_by,content,source_label,created_at FROM case_evidence WHERE case_id=$1 ORDER BY created_at', [req.caseRecord.id]),
+      pool.query('SELECT id,actor_user_id,event_type,summary,details,created_at FROM case_history WHERE case_id=$1 ORDER BY created_at DESC', [req.caseRecord.id])
+    ]);
+    res.json({ case: req.caseRecord, evidence: results[0].rows, history: results[1].rows });
+  } catch (error) { next(error); }
+});
+app.patch('/api/cases/:id', requireAuth, getCaseForUser, async (req, res, next) => {
+  const allowed = ['title', 'description', 'state', 'blocker', 'next_action'];
+  const updates = {};
+  for (const key of allowed) if (typeof (req.body && req.body[key]) === 'string') updates[key] = req.body[key].trim();
+  if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields supplied.' });
+  if (updates.title !== undefined && (!updates.title || updates.title.length > 200)) return res.status(400).json({ error: 'Title must be 1–200 characters.' });
+  for (const field of ['description', 'blocker', 'next_action']) if (updates[field] && updates[field].length > 10000) return res.status(400).json({ error: 'Text fields must be at most 10,000 characters.' });
+  const columnNames = { title: 'title', description: 'description', state: 'state', blocker: 'blocker', next_action: 'next_action' };
+  const keys = Object.keys(updates);
+  const setClause = keys.map((key, i) => columnNames[key] + '=$' + (i + 2)).join(',');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query('UPDATE cases SET ' + setClause + ',updated_at=NOW() WHERE id=$1 RETURNING *', [req.caseRecord.id, ...keys.map(k => updates[k])]);
+    await recordHistory(client, req.caseRecord.id, req.session.user.id, 'case_updated', 'Case fields updated', { fields: keys });
+    await client.query('COMMIT');
+    res.json({ case: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK'); next(error);
+  } finally { client.release(); }
+});
+app.post('/api/cases/:id/evidence', requireAuth, getCaseForUser, async (req, res, next) => {
+  const content = typeof (req.body && req.body.content) === 'string' ? req.body.content.trim() : '';
+  const sourceLabel = typeof (req.body && req.body.source_label) === 'string' ? req.body.source_label.trim() : '';
+  if (!content || content.length > 20000 || sourceLabel.length > 200) return res.status(400).json({ error: 'Evidence text is required (max 20,000 characters); source label max is 200.' });
+  const id = crypto.randomUUID();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query('INSERT INTO case_evidence(id,case_id,created_by,content,source_label) VALUES($1,$2,$3,$4,$5) RETURNING *', [id, req.caseRecord.id, req.session.user.id, content, sourceLabel]);
+    await recordHistory(client, req.caseRecord.id, req.session.user.id, 'evidence_added', 'Evidence added', { evidence_id: id, source_label: sourceLabel });
+    await client.query('COMMIT');
+    res.status(201).json({ evidence: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK'); next(error);
+  } finally { client.release(); }
+});
+
+app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
+app.use('/api', (error, _req, res, _next) => {
+  console.error('CASEFLOW API error:', error.message);
+  if (!res.headersSent) res.status(500).json({ error: 'An unexpected server error occurred.' });
+});
+app.use(express.static(path.join(__dirname, '..', 'bundle'), { index: 'index.html', etag: true, maxAge: isProduction ? '5m' : 0 }));
+app.get('*path', (_req, res) => res.sendFile(path.join(__dirname, '..', 'bundle', 'index.html')));
+
+async function bootstrapAdmin() {
+  const email = normalizeEmail(process.env.ADMIN_EMAIL);
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) {
+    if (isProduction) throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required for first boot.');
+    return;
+  }
+  if (!validEmail(email) || password.length < 12 || password.length > 128) throw new Error('ADMIN_EMAIL must be valid and ADMIN_PASSWORD must be 12–128 characters.');
+  const count = await pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role='admin'");
+  if (count.rows[0].count === 0) {
+    const hash = await argon2.hash(password, { type: argon2.argon2id });
+    await pool.query("INSERT INTO users(email,password_hash,role) VALUES($1,$2,'admin') ON CONFLICT(email) DO NOTHING", [email, hash]);
+    console.log('Initial administrator provisioned from environment settings.');
+  }
+}
+async function start() {
+  await pool.query('SELECT 1');
+  await pool.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+  await bootstrapAdmin();
+  app.listen(port, () => console.log('CASEFLOW server listening on port ' + port));
+}
+start().catch(error => {
+  console.error('CASEFLOW startup failed:', error.message);
+  process.exit(1);
+});
+process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });
