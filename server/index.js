@@ -185,6 +185,60 @@ app.post('/api/auth/login', loginLimiter, requireCsrf, async (req, res, next) =>
     res.json({ user: req.session.user });
   } catch (error) { next(error); }
 });
+
+// Password recovery: tokens are random, hashed at rest, single-use and expire after 30 minutes.
+const passwordResetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
+app.post('/api/auth/forgot-password', passwordResetLimiter, requireCsrf, async (req, res, next) => {
+  try {
+    const email = normalizeEmail(req.body && req.body.email);
+    if (!validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    const userResult = await pool.query('SELECT id,email FROM users WHERE email=$1 AND active=TRUE', [email]);
+    // Avoid disclosing whether an account exists.
+    if (!userResult.rowCount) return res.json({ message: 'If an active account matches that email, recovery instructions will be sent.' });
+    if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM || !process.env.APP_BASE_URL) {
+      return res.status(503).json({ error: 'Password recovery email is not configured. Contact the workspace administrator to reset access securely.' });
+    }
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1 OR expires_at<NOW() OR consumed_at IS NOT NULL', [userResult.rows[0].id]);
+    await pool.query('INSERT INTO password_reset_tokens(user_id,token_hash,expires_at) VALUES($1,$2,NOW()+INTERVAL \'30 minutes\')', [userResult.rows[0].id, tokenHash]);
+    const resetUrl = new URL('/reset-password.html', process.env.APP_BASE_URL);
+    resetUrl.searchParams.set('token', rawToken);
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method:'POST', headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({from:process.env.MAIL_FROM,to:[email],subject:'Reset your CASEFLOW password',text:'Use this one-time link to reset your CASEFLOW password within 30 minutes: '+resetUrl.toString()+'\nIf you did not request this, ignore this email.'}),
+      signal:AbortSignal.timeout(15000)
+    });
+    if (!emailResponse.ok) {
+      const err = await emailResponse.json().catch(()=>({}));
+      console.error('CASEFLOW password reset email rejected:', emailResponse.status, err.name || 'provider_error');
+      await pool.query('DELETE FROM password_reset_tokens WHERE user_id=$1 AND token_hash=$2',[userResult.rows[0].id,tokenHash]);
+      return res.status(502).json({ error: 'Recovery email could not be sent. Contact the workspace administrator; no reset was performed.' });
+    }
+    res.json({ message: 'If an active account matches that email, recovery instructions will be sent.' });
+  } catch(error) { next(error); }
+});
+app.post('/api/auth/reset-password', passwordResetLimiter, requireCsrf, async (req, res, next) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!/^[a-f0-9]{64}$/.test(token)) return res.status(400).json({ error: 'This reset link is invalid or expired. Request a new one.' });
+  if (password.length < 12 || password.length > 128) return res.status(400).json({ error: 'Choose a password between 12 and 128 characters.' });
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query('SELECT user_id FROM password_reset_tokens WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>NOW() FOR UPDATE', [tokenHash]);
+    if (!result.rowCount) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'This reset link is invalid, expired, or already used. Request a new one.' }); }
+    const passwordHash = await argon2.hash(password, {type:argon2.argon2id});
+    await client.query('UPDATE users SET password_hash=$1,updated_at=NOW() WHERE id=$2', [passwordHash,result.rows[0].user_id]);
+    await client.query('UPDATE password_reset_tokens SET consumed_at=NOW() WHERE token_hash=$1', [tokenHash]);
+    await client.query('DELETE FROM password_reset_tokens WHERE user_id=$1 AND token_hash<>$2', [result.rows[0].user_id,tokenHash]);
+    await client.query('COMMIT');
+    res.json({message:'Password updated. You can now sign in with your new password.'});
+  } catch(error) { await client.query('ROLLBACK'); next(error); }
+  finally { client.release(); }
+});
+
 app.post('/api/auth/logout', requireAuth, requireCsrf, async (req, res, next) => {
   try {
     await new Promise((resolve, reject) => req.session.destroy(err => err ? reject(err) : resolve()));
