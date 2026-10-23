@@ -1,5 +1,7 @@
 # 🚀 CASEFLOW
 
+<p align="center"><img src="bundle/caseflow-logo.svg" alt="CASEFLOW logo" width="120"></p>
+
 ### From Evidence to Decisions. From Decisions to Verified Outcomes.
 
 <p align="center">
@@ -20,6 +22,10 @@
 </p>
 
 ---
+
+## 🌟 About CASEFLOW
+
+CASEFLOW is a structured case-management workspace for turning complex situations into clear, reviewable work. It brings case context, evidence, blockers, proposed next steps, human decisions, and change history into one place. Its intended direction is evidence-grounded AI assistance with human oversight; agentic AI capabilities should only be described as available once the model integration and end-to-end agent workflow have been implemented and verified.
 
 ## 🌟 What is CASEFLOW?
 
