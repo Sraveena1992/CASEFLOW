@@ -70,19 +70,13 @@
     }
 
     .brand-mark {
-      display: grid;
+      display: block;
       width: 45px;
       height: 45px;
       flex: 0 0 45px;
-      place-items: center;
-      border: 1px solid rgba(255,255,255,.24);
-      border-radius: 15px;
-      background: linear-gradient(145deg,#a795ff,#6950f3 60%,#3e31a7);
-      box-shadow: 0 8px 28px rgba(111,81,255,.32);
-      color: white;
-      font-size: 15px;
-      font-weight: 900;
-      letter-spacing: -1px;
+      object-fit: contain;
+      border-radius: 13px;
+      box-shadow: 0 8px 28px rgba(36,185,222,.22);
     }
 
     .brand-name {
@@ -879,7 +873,7 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">CF</div>
+        <img class="brand-mark" src="/caseflow-logo.svg" alt="CASEFLOW logo" width="45" height="45" />
         <div>
           <div class="brand-name">CASEFLOW</div>
           <div class="brand-subtitle">Living cases, clearer decisions</div>
