@@ -62,3 +62,13 @@ CREATE INDEX IF NOT EXISTS email_verification_email_idx ON email_verification_to
 
 -- A company has exactly one owner/Admin account. Provisioning additional Admins is not supported.
 CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin_idx ON users ((role)) WHERE role = 'admin';
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS password_reset_user_idx ON password_reset_tokens(user_id, created_at DESC);
