@@ -380,7 +380,8 @@ app.use('/api', (error, _req, res, _next) => {
   console.error('CASEFLOW API error:', error.message);
   if (!res.headersSent) res.status(500).json({ error: 'An unexpected server error occurred.' });
 });
-app.use(express.static(path.join(__dirname, '..', 'bundle'), { index: 'index.html', etag: true, maxAge: isProduction ? '5m' : 0 }));
+app.use(express.static(path.join(__dirname, '..', 'bundle'), { index: false, etag: true, maxAge: isProduction ? '5m' : 0 }));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'bundle', 'landing.html')));
 app.get('*path', (_req, res) => res.sendFile(path.join(__dirname, '..', 'bundle', 'index.html')));
 
 async function bootstrapAdmin() {
