@@ -8,7 +8,7 @@
 *{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--ink);background:radial-gradient(circle at 12% 10%,#fff 0,transparent 34%),linear-gradient(135deg,#f5f6f8,#DDE3E8);display:grid;place-items:center;padding:24px}
 .shell{width:min(100%,980px);display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #ffffffb8;border-radius:28px;overflow:hidden;box-shadow:0 28px 90px #3A0F3418}
 aside{padding:44px;background:linear-gradient(155deg,#3A0F34,#57234e);color:white;display:flex;flex-direction:column;justify-content:space-between;min-height:590px}
-.logo{font-size:14px;font-weight:850;letter-spacing:.18em}.eyebrow{color:#f5c84e;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-top:64px}
+.logo{display:flex;align-items:center;gap:11px;font-size:14px;font-weight:850;letter-spacing:.18em}.logo img{width:38px;height:38px;object-fit:contain}.eyebrow{color:#f5c84e;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-top:64px}
 h1{font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.04em;margin:14px 0}aside p{color:#f4eaf2;max-width:340px}.pill{display:inline-flex;align-items:center;gap:8px;background:#ffffff14;border:1px solid #ffffff26;border-radius:999px;padding:10px 13px;font-size:12px;width:max-content}
 main{padding:clamp(28px,5vw,54px)}h2{font-size:28px;letter-spacing:-.03em;margin:0 0 8px}.sub{color:var(--muted);margin:0 0 28px;font-size:14px}
 label{display:block;font-size:13px;font-weight:750;margin:17px 0 7px}input{width:100%;padding:13px 14px;border:1px solid #d8dce3;border-radius:12px;font:inherit;color:var(--ink);outline:none;background:#fff}input:focus{border-color:var(--gold);box-shadow:0 0 0 3px #EAAA0028}
@@ -17,7 +17,7 @@ button{margin-top:24px;width:100%;border:0;border-radius:12px;padding:14px;backg
 @media(max-width:700px){.shell{grid-template-columns:1fr}aside{min-height:auto;padding:28px}.eyebrow{margin-top:32px}main{padding:28px}h1{font-size:34px}}
 </style></head>
 <body><div class="shell">
-<aside><div><div class="logo">CF &nbsp; CASEFLOW</div><div class="eyebrow">A clearer way to work</div><h1>Every case.<br>One clear next step.</h1><p>Join your company workspace as an Account Manager. Keep evidence, blockers and decisions connected in one living case record.</p></div><div class="pill">✦ &nbsp; Verified work email required</div></aside>
+<aside><div><div class="logo"><img src="/caseflow-logo.svg" alt="CASEFLOW logo"> <span>CASEFLOW</span></div><div class="eyebrow">A clearer way to work</div><h1>Every case.<br>One clear next step.</h1><p>Join your company workspace as an Account Manager. Keep evidence, blockers and decisions connected in one living case record.</p></div><div class="pill">✦ &nbsp; Verified work email required</div></aside>
 <main><h2>Create your account</h2><p class="sub">Use your company invite code to join securely.</p>
 <form id="signup" novalidate>
 <label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@company.com" maxlength="254" required>
