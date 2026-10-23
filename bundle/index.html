@@ -861,6 +861,80 @@
     .auth-logout:hover { border-color:#EAAA00; background:#fff9e7; }
     @media (max-width:760px) { .auth-actions { gap:6px; } .auth-user { display:none; } .auth-logout { padding:8px 10px; } }
 
+    /* CASEFLOW visual refresh: textured light workspace + deep ink hero + warm accent */
+    body {
+      background-color:#eef1f7;
+      background-image:
+        radial-gradient(ellipse at 8% 3%,rgba(111,91,190,.13),transparent 32%),
+        radial-gradient(ellipse at 92% 18%,rgba(29,167,190,.11),transparent 30%),
+        radial-gradient(rgba(47,37,73,.055) .7px,transparent .7px);
+      background-size:auto,auto,12px 12px;
+      color:#20243a;
+    }
+    .topbar {
+      background:rgba(18,20,43,.94);
+      border-bottom:1px solid rgba(255,255,255,.13);
+      box-shadow:0 8px 30px rgba(24,22,51,.12);
+    }
+    .brand-name{color:#fff}
+    .brand-subtitle{color:#c0c5dc}
+    .runtime-status{background:rgba(255,255,255,.08);color:#e5e9f7;border-color:rgba(255,255,255,.16)}
+    .welcome {
+      border:1px solid rgba(255,255,255,.5);
+      background:
+        radial-gradient(circle at 88% 20%,rgba(104,224,235,.18),transparent 25%),
+        radial-gradient(circle at 8% 100%,rgba(171,143,255,.22),transparent 38%),
+        linear-gradient(125deg,#201d3d 0%,#302650 58%,#163b50 100%);
+      box-shadow:0 24px 70px rgba(33,28,65,.2);
+    }
+    .welcome::before {
+      content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.24;
+      background-image:linear-gradient(135deg,transparent 49.6%,rgba(255,255,255,.15) 50%,transparent 50.4%);
+      background-size:28px 28px;
+    }
+    .welcome-label{color:#9cecf0}
+    .welcome-tagline{color:#f3edff}
+    .welcome-description{color:#d0d4e9}
+    .welcome-pills button{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#f5f3ff}
+    .welcome-pills button span{color:#8de8ef}
+    .welcome-pills button:hover{border-color:#8de8ef;background:rgba(110,231,249,.12)}
+    body .cf-page{color:#24253b}
+    body .cf-eyebrow{color:#6b56a2}
+    body .cf-title{color:#20213b}
+    body .cf-subtitle{color:#646a80}
+    body .cf-button{border-color:rgba(44,40,75,.16);background:rgba(255,255,255,.82);color:#30284a;box-shadow:0 4px 12px rgba(32,31,60,.04)}
+    body .cf-button:hover{border-color:#7c6ac2;background:#fff}
+    body .cf-button-primary{border-color:#6b58b0;background:linear-gradient(120deg,#7563bb,#514483);color:#fff;box-shadow:0 9px 24px rgba(83,67,139,.24)}
+    body .cf-button-primary:hover{background:linear-gradient(120deg,#8876cd,#5b4c99)}
+    body .cf-stat,body .cf-card{border-color:rgba(69,63,111,.13);background:linear-gradient(145deg,rgba(255,255,255,.97),rgba(246,247,252,.94));box-shadow:0 14px 34px rgba(40,38,76,.07)}
+    body .cf-stat::after{background:rgba(104,224,235,.2)}
+    body .cf-stat-label,body .cf-muted{color:#6a7087}
+    body .cf-stat-number{color:#24213e}
+    body .cf-section-heading h2{color:#262440}
+    body .cf-case-card:hover{border-color:rgba(106,91,176,.55);box-shadow:0 18px 42px rgba(44,38,82,.13)}
+    body .cf-case-card h3,body .cf-card h3{color:#282541}
+    body .cf-state{border-color:rgba(96,79,161,.2);background:rgba(115,96,188,.09);color:#5e4b9a}
+    body .cf-card p,body .cf-list-item p{color:#4f5369}
+    body .cf-field label{color:#2d2948}
+    body .cf-field input,body .cf-field textarea{border-color:#d9dce8;background:#fff;color:#292640}
+    body .cf-field input:focus,body .cf-field textarea:focus{border-color:#7b68bd;box-shadow:0 0 0 3px rgba(123,104,189,.15)}
+    body .cf-empty{border-color:rgba(100,89,151,.25);background:linear-gradient(145deg,rgba(255,255,255,.76),rgba(240,242,250,.8))}
+    body .cf-empty h3{color:#2a2746}
+    body .cf-empty p,body .cf-footer-note,.system-message{color:#697087}
+    body .cf-list-item{border-color:rgba(69,63,111,.13);background:rgba(255,255,255,.82)}
+    body .cf-history-type{color:#6b56a2}
+    body .cf-notice{background:#fff;color:#2d2948;border-color:#e0dfeb}
+    body .cf-notice-warning{background:#fff8e5;border-color:#efd48b}
+    body .cf-notice-success{background:#eaf7f1;border-color:#b8e0ce}
+    body .cf-notice-error{background:#fff0f1;border-color:#edc1c8}
+    body .cf-pending{background:linear-gradient(145deg,#fff8e6,#f8f7fc);border-color:#e8cd81}
+    body .cf-pending h3{color:#2d2948}
+    body .cf-pending .cf-card{background:rgba(255,255,255,.9)}
+    .auth-user{color:#d3d8ea}
+    .auth-logout{border-color:#ffffff30;background:#ffffff0d;color:#f4f2ff}
+    .auth-logout:hover{border-color:#8de8ef;background:#ffffff16}
+    @media(max-width:760px){.main{padding-top:18px}.welcome{border-radius:21px}.topbar{gap:10px}}
+
     @media (prefers-color-scheme: dark) {
       /* Keep the requested silver/aubergine/gold palette consistent in every OS theme. */
       :root { color-scheme: light; }
