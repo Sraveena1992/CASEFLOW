@@ -1,0 +1,33 @@
+name: CASEFLOW staging checks
+
+on:
+  push:
+    branches:
+      - staging-auth-integration
+  pull_request:
+    branches:
+      - staging-auth-integration
+
+jobs:
+  syntax-and-static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install
+      - name: Check server JavaScript syntax
+        run: npm run check
+      - name: Check browser application JavaScript syntax
+        run: node --check bundle/app.js
+      - name: Verify dashboard and login affordances
+        shell: bash
+        run: |
+          grep -q 'background-color:#f4f6fb' bundle/index.html
+          grep -q 'background-size:auto,auto,auto,10px 10px' bundle/index.html
+          grep -q 'Return to CASEFLOW' bundle/login.html
+          test -f bundle/reset-password.html
