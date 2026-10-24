@@ -434,7 +434,7 @@ app.use('/api', (error, _req, res, _next) => {
   console.error('CASEFLOW API error:', error.message);
   if (!res.headersSent) res.status(500).json({ error: 'An unexpected server error occurred.' });
 });
-app.use(express.static(path.join(__dirname, '..', 'bundle'), { index: false, etag: true, maxAge: isProduction ? '5m' : 0 }));
+app.use(express.static(path.join(__dirname, '..', 'bundle'), { index: false, etag: true, maxAge: isProduction ? '0' : 0 }));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'bundle', 'landing.html')));
 app.get('/login', (_req, res) => res.redirect(302, '/login.html'));
 app.get('/signup', (_req, res) => res.redirect(302, '/signup.html'));
