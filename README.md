@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/AI-Agentic%20Workflow-6C63FF?style=for-the-badge" alt="AI Workflow" />
   <img src="https://img.shields.io/badge/Platform-Anna-0A7B83?style=for-the-badge" alt="Anna Platform" />
   <img src="https://img.shields.io/badge/Status-Prototype-orange?style=for-the-badge" alt="Prototype" />
-  <img src="https://img.shields.io/badge/Tests-6%20Passing-brightgreen?style=for-the-badge" alt="6 passing tests" />
+  <img src="https://img.shields.io/badge/Checks-Source%20suite%20added-blue?style=for-the-badge" alt="Source checks added; execution pending" />
 </p>
 
 <p align="center">
