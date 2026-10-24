@@ -30,5 +30,7 @@ jobs:
         run: npm run check
       - name: Check browser application JavaScript syntax
         run: node --check bundle/app.js
+      - name: Install Python test runner
+        run: python -m pip install pytest
       - name: Smoke-test Anna Executa protocol and integration mapping
         run: python -m pytest -q tests/test_executa.py
