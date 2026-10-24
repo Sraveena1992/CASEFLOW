@@ -426,7 +426,8 @@ async function startWorkspace() {
     const token = await api("/api/auth/csrf");
     state.csrf = token.csrfToken;
     await refreshData();
-    showDashboard();
+    if (new URLSearchParams(window.location.search).get("view") === "governance") showGovernanceWorkspace();
+    else showDashboard();
     setStatus("Shared PostgreSQL workspace ready.", "ready");
   } catch (error) {
     container.innerHTML = '<div class="cf-page"><h1 class="cf-title">Workspace could not load</h1><p class="cf-subtitle">' + esc(error.message) + '</p><button class="cf-button" onclick="location.reload()">Retry</button></div>';
