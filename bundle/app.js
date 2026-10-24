@@ -329,17 +329,23 @@ async function showUsers() {
 }
 async function showAudit() {
   state.view = "audit";
+  const auditContainer = $("cases-container");
+  if (!auditContainer || !isAdmin()) return notice("Audit log is available to Admin accounts only.", "error");
   $("cases-container").innerHTML = '<div class="cf-page"><p class="cf-eyebrow">Accountability</p><h1 class="cf-title">Audit log</h1><p class="cf-subtitle">Recent events across the workspace.</p><div class="cf-empty">Loading audit history…</div></div>';
   try {
     const response = await api("/api/admin/audit-log");
-    state.audit = response.events || [];
+    if (state.view !== "audit") return;
+    state.audit = Array.isArray(response.events) ? response.events : [];
     $("cases-container").innerHTML = '<div class="cf-page"><div class="cf-topline"><div><p class="cf-eyebrow">Accountability</p><h1 class="cf-title">Audit log</h1><p class="cf-subtitle">Latest 500 events across all cases.</p></div><button class="cf-button" data-action="back">← Dashboard</button></div>' + (state.audit.length ? '<div class="cf-list">' + state.audit.map((e) => '<article class="cf-list-item"><div class="cf-history-type">' + esc(String(e.event_type).replace(/_/g," ")) + '</div><p><strong>' + esc(e.summary) + '</strong></p><div class="cf-muted">' + esc(date(e.created_at,true)) + ' · ' + esc(e.actor_email) + ' · Case: ' + esc(e.case_title) + '</div></article>').join("") + '</div>' : '<div class="cf-empty"><p>No audit events yet.</p></div>') + '</div>';
-  } catch (error) { $("cases-container").innerHTML = '<div class="cf-page"><h1 class="cf-title">Could not load audit log</h1><p class="cf-subtitle">' + esc(error.message) + '</p><button class="cf-button" data-action="back">← Dashboard</button></div>'; }
+  } catch (error) { if (state.view !== "audit") return; $("cases-container").innerHTML = '<div class="cf-page"><h1 class="cf-title">Could not load audit log</h1><p class="cf-subtitle">' + esc(error.message) + '</p><button class="cf-button" data-action="back">← Dashboard</button></div>'; }
 }
 async function handleClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
   const action = button.dataset.action;
+  if (action === "audit") { state.view = "audit"; return showAudit(); }
   if (action === "filter") { state.filter = button.dataset.filter; return showDashboard(); }
   if (action === "new-case") return showCreateForm();
   if (action === "back") { state.filter = "all"; return showDashboard(); }
@@ -406,7 +412,7 @@ async function main() {
 async function startWorkspace() {
   const container = $("cases-container");
   if (!container) return;
-  container.addEventListener("click", handleClick);
+  if (!container.dataset.caseflowClickBound) { container.addEventListener("click", handleClick); container.dataset.caseflowClickBound = "1"; }
   if ($("welcome-capabilities")) {
     $("welcome-capabilities").addEventListener("click", (event) => {
       const b = event.target.closest("[data-welcome-action]");
