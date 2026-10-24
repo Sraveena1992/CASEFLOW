@@ -28,8 +28,8 @@ app.disable('x-powered-by');
 if (isProduction) app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: { directives: {
-    defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'https:'], connectSrc: ["'self'"], objectSrc: ["'none'"],
+    defaultSrc: ["'self'"], scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"], styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", 'data:', 'https:'], connectSrc: ["'self'", "https://cdnjs.cloudflare.com"], workerSrc: ["'self'", "blob:", "https://cdnjs.cloudflare.com"], objectSrc: ["'none'"],
     frameAncestors: ["'none'"], upgradeInsecureRequests: isProduction ? [] : null
   }}
 }));
