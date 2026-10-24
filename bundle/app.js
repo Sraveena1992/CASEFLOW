@@ -118,10 +118,10 @@ function addStyles() {
 }
 function renderNav() {
   const tabs = isAdmin()
-    ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"]]
-    : [["all","My cases"]];
+    ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"],["assurance","Agent assurance"]]
+    : [["all","My cases"],["assurance","Agent assurance"]];
   return '<nav class="cf-nav" aria-label="Workspace sections">' + tabs.map((t) => {
-    const action = t[0] === "users" || t[0] === "audit" ? t[0] : "filter";
+    const action = ["users","audit","assurance"].includes(t[0]) ? t[0] : "filter";
     return '<button type="button" class="' + (state.filter === t[0] ? "active" : "") + '" data-action="' + action + '" data-filter="' + t[0] + '">' + t[1] + '</button>';
   }).join("") + "</nav>";
 }
@@ -348,7 +348,31 @@ async function handleClick(event) {
   if (action === "reject-transition") return reviewProposal(false);
   if (action === "users") return showUsers();
   if (action === "audit") return showAudit();
+  if (action === "assurance") return showAgentAssurance();
 }
+async function showAgentAssurance() {
+  state.view = "assurance";
+  const container = $("cases-container");
+  container.innerHTML = '<div class="cf-page"><div class="cf-topline"><div><p class="cf-eyebrow">READ-ONLY DIAGNOSTICS</p><h1 class="cf-title">Agent assurance</h1><p class="cf-subtitle">Run bounded workspace smoke checks. These checks read existing service state only; they do not edit cases, evidence, users or settings.</p></div><button class="cf-button" data-action="back">← Dashboard</button></div><section class="cf-card" style="margin:18px 0"><div class="cf-eyebrow">TEST PLAN · 5 CHECKS</div><h2>Workspace health &amp; integrity</h2><p class="cf-muted">API availability · authenticated session · case API consistency · evidence/history structure · role context</p><button id="run-assurance" class="cf-button cf-button-primary" type="button">▶ Run read-only tests</button><p id="assurance-status" class="cf-muted" role="status">No test run yet.</p></section><div id="assurance-results" class="cf-list"></div></div>';
+  $("run-assurance").addEventListener("click", runAgentAssurance);
+}
+async function runAgentAssurance() {
+  const button = $("run-assurance"), status = $("assurance-status"), results = $("assurance-results");
+  button.disabled = true; status.textContent = "Running bounded read-only checks…"; results.innerHTML = "";
+  const checks = [];
+  const record = (name, ok, detail) => checks.push({name,status:ok ? "PASS" : "FAIL",detail});
+  try { const response = await fetch("/api/health",{credentials:"same-origin",cache:"no-store"}); const data = await response.json().catch(()=>({})); record("API health",response.ok && data.ok === true,data.service || ("HTTP " + response.status)); } catch(error) { record("API health",false,error.message); }
+  try { const me = await api("/api/auth/me"); record("Authenticated session",!!(me.user && me.user.id && me.user.role === state.user.role),"Role: " + (me.user && me.user.role || "unknown")); } catch(error) { record("Authenticated session",false,error.message); }
+  try { const data = await api("/api/cases"); const rows = Array.isArray(data.cases) ? data.cases : null; const valid = !!rows && rows.every(x => x && x.id && typeof x.title === "string" && typeof x.state === "string"); record("Case API consistency",valid && rows.length === state.cases.length,"API returned " + (rows ? rows.length : "invalid") + " case(s); workspace loaded " + state.cases.length + "."); } catch(error) { record("Case API consistency",false,error.message); }
+  const detailOk = state.cases.every(x => Array.isArray(x.evidence) && Array.isArray(x.history)); record("Evidence & history structure",detailOk,"Checked " + state.cases.length + " loaded case(s).");
+  const roleOk = ["admin","account_manager"].includes(state.user && state.user.role); record("Role context",roleOk,"Current role: " + (state.user && state.user.role || "missing") + ". No privileged action attempted.");
+  const passed = checks.filter(x => x.status === "PASS").length, failed = checks.length - passed;
+  status.textContent = passed + "/" + checks.length + " checks passed · " + new Date().toLocaleString();
+  results.innerHTML = checks.map(x => '<article class="cf-list-item"><div class="cf-history-type">' + esc(x.status) + ' · ' + esc(x.name) + '</div><p>' + esc(x.detail) + '</p></article>').join("") + '<article class="cf-list-item"><strong>Run summary</strong><p>' + passed + ' passed · ' + failed + ' failed</p><button id="download-assurance" class="cf-button" type="button">↓ Download JSON report</button></article>';
+  $("download-assurance").addEventListener("click", () => { const report = {product:"CASEFLOW Agent Assurance",mode:"read-only smoke checks",generatedAt:new Date().toISOString(),actorRole:state.user.role,summary:{total:checks.length,passed,failed},checks}; const blob = new Blob([JSON.stringify(report,null,2)],{type:"application/json"}); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href=url; link.download="caseflow-agent-assurance-report.json"; link.click(); URL.revokeObjectURL(url); });
+  button.disabled = false;
+}
+
 async function connectAnna() {
   try {
     const mod = await import("/static/anna-apps/_sdk/latest/index.js");
