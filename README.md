@@ -39,6 +39,28 @@ Our long-term vision is to build a trusted agentic AI platform that helps indivi
 
 > 💡 **Core principle:** An action being attempted is not the same as an outcome being verified.
 
+## 💡 Why CASEFLOW Exists
+
+CASEFLOW exists because important work often breaks down between understanding a problem and confirming that it has actually been resolved. Context gets scattered across emails, documents and conversations; ownership becomes unclear; blockers stay hidden; and teams can lose the reasoning behind a decision.
+
+CASEFLOW brings that work into a living, reviewable case record. The goal is not to add another place to chat. It is to create a dependable operating layer where people can see:
+
+- **What is happening** — the situation and current case state.
+- **What is known** — evidence and its source, kept with the case.
+- **What is missing** — blockers, uncertainties and unanswered questions.
+- **What should happen next** — a clear, owned follow-up.
+- **Who decided** — human review and a traceable history.
+- **What is actually complete** — outcomes supported by recorded evidence, not assumptions.
+
+### Core product principles
+
+1. **Context before action:** understand the case before proposing a change.
+2. **Evidence before conclusions:** distinguish supplied evidence, missing information and assumptions.
+3. **Human authority:** people remain responsible for consequential decisions and approvals.
+4. **Traceability:** preserve who changed what, when and why.
+5. **Verified outcomes:** never confuse an attempted action with a confirmed result.
+6. **Least privilege:** future agents and integrations must operate only within explicitly authorized scope.
+
 ## 🎯 The Problem We Want to Solve
 
 People and businesses constantly deal with:
