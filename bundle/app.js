@@ -118,7 +118,7 @@ function addStyles() {
 }
 function renderNav() {
   const tabs = isAdmin()
-    ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"],["assurance","Agent assurance"]]
+    ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"],["assurance","Agent assurance"],["governance","Evidence & AI governance"]]
     : [["all","My cases"],["assurance","Agent assurance"]];
   return '<nav class="cf-nav" aria-label="Workspace sections">' + tabs.map((t) => {
     const action = ["users","audit","assurance"].includes(t[0]) ? t[0] : "filter";
@@ -349,6 +349,16 @@ async function handleClick(event) {
   if (action === "users") return showUsers();
   if (action === "audit") return showAudit();
   if (action === "assurance") return showAgentAssurance();
+  if (action === "governance") return showGovernanceWorkspace();
+  if (action === "review-filter") { state.filter = "review"; return showDashboard(); }
+}
+
+async function showGovernanceWorkspace() {
+  state.view = "governance";
+  const container = $("cases-container");
+  if (!container) return;
+  const admin = isAdmin();
+  container.innerHTML = '<div class="cf-page"><div class="cf-topline"><div><p class="cf-eyebrow">EVIDENCE &amp; AI GOVERNANCE</p><h1 class="cf-title">Governance workspace</h1><p class="cf-subtitle">Evidence-first review with role-aware access and human-controlled decisions.</p></div><button class="cf-button" data-action="back">← Dashboard</button></div><div class="cf-stats"><div class="cf-stat"><div class="cf-stat-label">Your accessible cases</div><div class="cf-stat-number">' + state.cases.length + '</div></div><div class="cf-stat"><div class="cf-stat-label">Evidence records</div><div class="cf-stat-number">' + state.cases.reduce((n,c)=>n+(c.evidence||[]).length,0) + '</div></div><div class="cf-stat"><div class="cf-stat-label">Access profile</div><div class="cf-stat-number">' + (admin ? 'ADMIN' : 'MANAGER') + '</div></div></div><section class="cf-card" style="margin:18px 0"><p class="cf-eyebrow">CONTROLLED REVIEW</p><h2>' + (admin ? 'Oversight & review' : 'My case evidence') + '</h2><p class="cf-muted">' + (admin ? 'Administrator view: inspect all accessible case records, evidence and audit events. Decisions remain human-controlled.' : 'Account Manager view: inspect your own case records and evidence, then use the existing review workflow for changes.') + '</p><div class="cf-detail-actions"><button class="cf-button cf-button-primary" data-action="filter" data-filter="all">Browse accessible cases</button>' + (admin ? '<button class="cf-button" data-action="audit">Open audit history</button><button class="cf-button" data-action="review-filter">Review queue</button>' : '') + '</div></section><section class="cf-card"><h2>Guideline PDF ingestion</h2><p class="cf-muted">PDF upload, page-level text extraction, clause indexing and specialist evidence checks are not enabled in this deployed build yet. No file is uploaded or processed here. Existing evidence text and source labels remain available in each case record.</p><p class="cf-muted">Governance principle: no automated approval. A person must review and confirm consequential decisions.</p></section><div class="cf-section-heading"><h2>Accessible case records</h2><span class="cf-muted">' + state.cases.length + ' record(s)</span></div>' + renderCaseCards(state.cases) + '</div>';
 }
 async function showAgentAssurance() {
   state.view = "assurance";
