@@ -121,7 +121,7 @@ function renderNav() {
     ? [["all","All cases"],["review","Review queue"],["audit","Audit log"],["users","Account managers"],["assurance","Agent assurance"],["governance","Evidence & AI governance"]]
     : [["all","My cases"],["assurance","Agent assurance"]];
   return '<nav class="cf-nav" aria-label="Workspace sections">' + tabs.map((t) => {
-    const action = ["users","audit","assurance"].includes(t[0]) ? t[0] : "filter";
+    const action = ["users","audit","assurance","governance"].includes(t[0]) ? t[0] : "filter";
     return '<button type="button" class="' + (state.filter === t[0] ? "active" : "") + '" data-action="' + action + '" data-filter="' + t[0] + '">' + t[1] + '</button>';
   }).join("") + "</nav>";
 }
