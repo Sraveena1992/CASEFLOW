@@ -193,6 +193,29 @@ async function analyzeEvidence(item, evidenceText) {
   }
   const nextAction = parsed.next_action || parsed.nextAction;
   for (const value of [parsed.state,parsed.blocker,nextAction,parsed.reason]) if (typeof value !== "string" || !value.trim()) throw new Error("Anna's proposal was incomplete.");
+
+  const toolId = window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__.caseflow
+    ? window.__ANNA_TOOL_IDS__.caseflow
+    : "tool-dev-caseflow";
+  if (!state.anna.tools || typeof state.anna.tools.invoke !== "function") {
+    throw new Error("CASEFLOW Executa is not available in this Anna runtime.");
+  }
+  const validation = await state.anna.tools.invoke({
+    tool_id: toolId,
+    method: "evaluate_transition",
+    args: {
+      evidence: evidenceText,
+      proposed_state: parsed.state.trim(),
+      proposed_blocker: parsed.blocker.trim(),
+      proposed_next_action: nextAction.trim(),
+      reason: parsed.reason.trim()
+    }
+  });
+  const validationData = validation && (validation.data || (validation.result && validation.result.data) || validation.result || validation);
+  if (!validationData || validationData.valid !== true || validationData.status !== "READY_FOR_HUMAN_REVIEW") {
+    const missing = validationData && Array.isArray(validationData.missing_fields) ? validationData.missing_fields.join(", ") : "";
+    throw new Error("Executa did not validate this proposal." + (missing ? " Missing: " + missing : ""));
+  }
   return {state:parsed.state.trim(),blocker:parsed.blocker.trim(),next_action:nextAction.trim(),reason:parsed.reason.trim()};
 }
 async function reviewProposal(accepted) {
