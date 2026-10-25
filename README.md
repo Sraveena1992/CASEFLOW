@@ -1,210 +1,67 @@
-# 🚀 CASEFLOW
+# CASEFLOW — Living cases, clearer decisions
 
-<p align="center"><img src="bundle/caseflow-logo.svg" alt="CASEFLOW logo" width="120"></p>
+<p align="center"><img src="bundle/caseflow-logo.svg" alt="CASEFLOW" width="112"></p>
+<p align="center"><strong>Every case. One clear next step.</strong></p>
+<p align="center">Turn scattered information into living case records, visible blockers, evidence-backed decisions and traceable follow-through.</p>
 
-### From Evidence to Decisions. From Decisions to Verified Outcomes.
+<p align="center"><a href="https://caseflow-staging.onrender.com/landing.html">Product overview</a> · <a href="https://caseflow-staging.onrender.com/login.html">Sign in</a> · <a href="https://github.com/Sraveena1992/CASEFLOW">Source code</a></p>
 
-<p align="center">
-  <strong>Your AI-powered workspace for managing complex situations, decisions, and next actions.</strong>
-</p>
+## About CASEFLOW
+CASEFLOW is a secure, role-aware case workspace for work that is too important to leave scattered across inboxes, documents and chat threads. Each situation becomes a living record with an owner, current state, blocker, evidence, next action and a history of changes. **Progress should be understandable, decisions should be reviewable, and completion should be supported by evidence.**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/AI-Agentic%20Workflow-6C63FF?style=for-the-badge" alt="AI Workflow" />
-  <img src="https://img.shields.io/badge/Platform-Anna-0A7B83?style=for-the-badge" alt="Anna Platform" />
-  <img src="https://img.shields.io/badge/Status-Prototype-orange?style=for-the-badge" alt="Prototype" />
-  <img src="https://img.shields.io/badge/Checks-Source%20suite%20added-blue?style=for-the-badge" alt="Source checks added; execution pending" />
-</p>
+## Why CASEFLOW exists
+Important work stalls in the gaps between information and action. Context gets lost, ownership becomes unclear, evidence is separated from decisions, and teams cannot explain why a case changed. CASEFLOW brings those moving parts into one structured workflow: understand the situation, see what is known and missing, make a human decision, and track what happens next. It is not intended to be another chat window or an opaque automation layer.
 
-<p align="center">
-  <a href="https://github.com/Sraveena1992/CASEFLOW">📦 Repository</a> •
-  <a href="https://github.com/Sraveena1992/CASEFLOW/issues">🐛 Report an Issue</a> •
-  <a href="https://github.com/Sraveena1992/CASEFLOW/issues/new">💡 Suggest an Improvement</a>
-</p>
+## Core features
+| Feature | Purpose |
+|---|---|
+| Living case records | Capture the situation, owner, state, blocker and next action. |
+| Evidence & source notes | Keep supporting text and source labels with each case. |
+| Role-based workspace | Separate Admin oversight from Account Manager case ownership. |
+| Human-reviewed transitions | Accept or reject proposed case-state changes; proposals do not apply themselves. |
+| Case history & audit events | Inspect recorded updates, evidence additions and review actions. |
+| Correction workflow | Admins can request changes while preserving case-owner responsibility. |
+| Agent Assurance | Five bounded, read-only checks across service health, session, case API, evidence/history and role context. |
+| Evidence & AI Governance | Browser-local selectable PDF text extraction, page-level keyword search, deterministic term checks and human-labelled local decisions. |
 
----
+## How it works
+1. **Capture** the situation and desired outcome.
+2. **Organize** evidence, source labels, blockers and next actions.
+3. **Review** a proposed transition and its rationale.
+4. **Decide** — an authorized human accepts or rejects it.
+5. **Track** updates and decisions in the case history.
+6. **Verify** completion only when supporting evidence exists.
 
-## 🌟 About CASEFLOW
+## Who uses CASEFLOW?
+- **Account Managers** create and maintain cases, add evidence and respond to correction requests.
+- **Admins** oversee cases, inspect audit history, manage team access and run read-only assurance checks.
 
-CASEFLOW is a structured case-management workspace for turning complex situations into clear, reviewable work. It brings case context, evidence, blockers, proposed next steps, human decisions, and change history into one place. Its intended direction is evidence-grounded AI assistance with human oversight; agentic AI capabilities should only be described as available once the model integration and end-to-end agent workflow have been implemented and verified.
+## Product principles
+- Evidence before conclusions.
+- Human authority over consequential decisions.
+- Clear ownership and least-privilege access.
+- Traceable changes and honest status reporting.
+- An attempted action is not the same as a verified outcome.
 
-## 🌟 What is CASEFLOW?
+## Current implementation & boundaries
+The web workspace uses a JavaScript interface, Node.js service and PostgreSQL-backed shared case records, evidence and audit events. Anna runtime AI proposal support is available only in a connected Anna context; the external Render preview does not guarantee Anna AI availability.
 
-Real-world problems rarely stay in one place. Evidence lives in messages and documents, decisions happen across conversations, and important follow-ups get lost.
+The Governance Workspace currently performs **browser-local selectable-text PDF extraction**, page-level indexing, keyword search and deterministic term-presence checks. Its decision trail is stored in browser local storage, not the server audit database. It is not vector RAG, OCR, an AI compliance verdict or an immutable audit service. Scanned PDFs and visual/image inspection are not supported yet.
 
-**CASEFLOW is an AI-assisted case-management prototype designed to turn evolving situations into structured, reviewable decisions and actionable next steps.**
+Agent Assurance is a bounded read-only diagnostic, not an autonomous agent or security certification. External actions are outside current scope unless an explicit, authorized integration is added and verified.
 
-Instead of treating every problem as a one-off chat, CASEFLOW organizes it as a living case with context, evidence, blockers, proposed changes, human decisions, and a history of what happened.
+## Product direction
+The longer-term direction is a reusable case-resolution engine for specialized workflows such as career operations, service resolution and business operations. These are roadmap directions, not claims that every specialized agent or third-party integration is live.
 
-Our long-term vision is to build a trusted agentic AI platform that helps individuals and businesses move from **intent → evidence → decision → authorized action → verified outcome**.
+## Development
+See `AUTH_SETUP.md` for environment and authentication setup. The repository includes source checks and Python tests for the Executa transition validator. Run the commands configured in `package.json` and the Python package's `uv` environment.
 
-> 💡 **Core principle:** An action being attempted is not the same as an outcome being verified.
+## Security & privacy
+Authentication, role checks, CSRF protection and server-side shared records are part of the web workspace. Never commit credentials, API keys, session tokens or sensitive customer data. Governance PDF extraction does not upload the selected PDF; local decision records are device/profile-specific and are not central audit evidence.
 
-## 💡 Why CASEFLOW Exists
+## Feedback
+Issues and constructive feedback: https://github.com/Sraveena1992/CASEFLOW/issues
 
-CASEFLOW exists because important work often breaks down between understanding a problem and confirming that it has actually been resolved. Context gets scattered across emails, documents and conversations; ownership becomes unclear; blockers stay hidden; and teams can lose the reasoning behind a decision.
+**Built by Sraveena Sharma** · [@Sraveena1992](https://github.com/Sraveena1992)
 
-CASEFLOW brings that work into a living, reviewable case record. The goal is not to add another place to chat. It is to create a dependable operating layer where people can see:
-
-- **What is happening** — the situation and current case state.
-- **What is known** — evidence and its source, kept with the case.
-- **What is missing** — blockers, uncertainties and unanswered questions.
-- **What should happen next** — a clear, owned follow-up.
-- **Who decided** — human review and a traceable history.
-- **What is actually complete** — outcomes supported by recorded evidence, not assumptions.
-
-### Core product principles
-
-1. **Context before action:** understand the case before proposing a change.
-2. **Evidence before conclusions:** distinguish supplied evidence, missing information and assumptions.
-3. **Human authority:** people remain responsible for consequential decisions and approvals.
-4. **Traceability:** preserve who changed what, when and why.
-5. **Verified outcomes:** never confuse an attempted action with a confirmed result.
-6. **Least privilege:** future agents and integrations must operate only within explicitly authorized scope.
-
-## 🎯 The Problem We Want to Solve
-
-People and businesses constantly deal with:
-
-- 📄 Scattered documents, messages, and evidence
-- 🔎 Missing information and conflicting claims
-- ⏳ Unresolved cases, delays, and forgotten follow-ups
-- 🤔 Decisions without a clear record of why they were made
-- 🔁 Repeated manual work across disconnected tools
-- ✅ Difficulty distinguishing a proposed action from a completed outcome
-
-CASEFLOW aims to make these situations more structured, transparent, and easier to manage.
-
-## ✨ Current Prototype Capabilities
-
-| Capability | What it does |
-| :--- | :--- |
-| 🗂️ Living Cases | Organizes a situation, current state, blocker, and next action |
-| 📎 Evidence Capture | Keeps relevant evidence associated with a case |
-| 🧠 AI-Assisted Analysis | Helps prepare proposed state changes and next steps |
-| 🛡️ Human Review | Allows users to confirm or reject proposed transitions |
-| 🧾 Case History | Records case events and decisions |
-| 💾 Browser Persistence | Retains case data in the browser's local storage |
-| 🔍 Transition Validation | Checks whether a proposed transition contains the required information |
-
-**Transparency matters:** the current validator does not independently authenticate evidence. Browser-local storage is not a shared multi-user database, and the current prototype does not provide production-ready external payment, job-application, tax-filing, or logistics execution.
-
-## 🔄 How CASEFLOW Works
-
-1. **Create a case** — describe the situation and its desired outcome.
-2. **Capture evidence** — organize relevant records and information.
-3. **Analyze the situation** — review a proposed state change and its rationale.
-4. **Check for gaps** — identify missing information before acting.
-5. **Make a human decision** — accept or reject the proposal.
-6. **Record the result** — preserve the case state and decision history.
-7. **Continue toward resolution** — identify the next useful action.
-
-**flowchart TD**
-    A["🎯 Define the Goal"] --> B["🗂️ Create a Living Case"]
-    B --> C["📎 Capture Evidence"]
-    C --> D["🧠 Analyze & Propose"]
-    D --> E{"🛡️ Human Review"}
-    E -->|Approve| F["✅ Apply Proposed Transition"]
-    E -->|Reject| G["↩️ Preserve Current State"]
-    F --> H["🧾 Record History"]
-    G --> H
-    H --> I["➡️ Identify Next Action"]
-
-## 🧪 Example: Vendor Payment Delay
-Imagine a business has a delayed supplier payment and conflicting invoice information.
-
-CASEFLOW can help organize the case, capture available evidence, surface missing information, propose a state change for human review, and record the resulting decision.
-
-It should not label a discrepancy as fraud without evidence, or claim that a payment has completed simply because someone initiated it.
-
-
----
-
-## 🧭 Our Product Vision
-
-CASEFLOW is designed around one shared workflow engine, with specialized experiences planned for different needs.
-
-| Planned experience | Intended use |
-| :--- | :--- |
-| 👤 Personal Agent | Personal tasks, bills, documents, and follow-ups |
-| 💼 Career Agent | Job discovery, application preparation, and application tracking |
-| 🧰 Resolution Agent | Refunds, disputes, complaints, and service issues |
-| 🏢 Business Operations Agent | Invoices, suppliers, buyer discovery, and operational workflows |
-| 🌐 Integration Layer | Authorized connections to external services, where available |
-
-These are roadmap directions, not claims that every agent or integration is already implemented.
-
-## 🛠️ Technology & Development
-
-- **Anna App Platform** — application runtime and AI integration
-- **JavaScript** — browser-based user interface
-- **Python** — CASEFLOW Executa transition validation
-- **Python `unittest`** — automated validation tests
-- **Browser Local Storage** — prototype case persistence
-
-## Run locally
-
-Requirements: Windows, Node.js/npm, Python managed through `uv`, and the Anna App CLI.
-
-# Navigate to the project
-cd C:\Users\acer\caseflow
-
-# Validate the application
-anna-app.cmd validate --strict
-
-# Run automated tests
-& "$env:APPDATA\uv\python\cpython-3.14-windows-x86_64-none\python.exe" -m unittest discover -s tests -v
-
-# Start the local Anna app runtime
-anna-app.cmd dev --slug caseflow --no-watch
-
-If the runtime starts successfully, open the local dashboard URL printed in the terminal (expected in the current setup: http://localhost:5180/).
-
-Note: the local runtime has previously encountered a Python bridge startup timeout. A successful validation or test run does not by itself guarantee that the runtime will launch on every machine.
-
-🔐 **Security, Trust & Human Control**
-CASEFLOW's design principles:
-
-🛡️ Human review for proposed state transitions
-
-🔎 Clear distinction between evidence and assumptions
-
-🚫 No unsupported claims of independent evidence verification
-
-🧾 Traceable case history and recorded decisions
-
-🔑 External actions should require appropriate permissions and authorization
-
-✅ Completion claims should be backed by observable evidence
-
-Production deployment will require additional work, including secure authentication, server-side persistence, access control, secret management, integration security, recovery, and privacy safeguards.
-
-🗺️ ## Roadmap
-- [ ] Structured case-management prototype
-- [ ] Evidence capture and case history
-- [ ] AI-assisted transition proposals
-- [ ] Human approval and rejection flow
-- [ ] Executa transition validation tests
-- [ ] Improve end-to-end runtime reliability
-- [ ] Build a reusable goal-to-outcome execution engine
-- [ ] Add evidence-linked decisions and stronger audit records
-- [ ] Implement authorized external integrations
-- [ ] Verify real action outcomes
-- [ ] Add secure multi-user workspaces
-- [ ] Test with real users and measure resolution outcomes
-
-🤝 **Contributing & Feedback**
-Ideas, issue reports, and constructive feedback are welcome.
-
-🐛 Open an issue
-
-💡 Suggest an enhancement
-
-👀 Explore the source code
-
-👩‍💻 **Built by**
-Sraveena Sharma
-
-GitHub: @Sraveena1992
-
-📜 License 
-- No open-source license has been declared yet. Unless a license is added, public visibility does not automatically grant permission to reuse, modify, or redistribute the source code.
+No open-source license is currently declared. Public repository visibility does not itself grant reuse or redistribution rights.
