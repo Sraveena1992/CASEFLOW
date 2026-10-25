@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1428">
+  <meta name="description" content="CASEFLOW Privacy Policy: how information is handled in the CASEFLOW case workspace.">
+  <title>Privacy Policy | CASEFLOW</title>
+  <style>
+    :root{color-scheme:dark;--bg:#081326;--panel:#101e35;--line:#263d5a;--text:#eef5ff;--muted:#b5c3d8;--cyan:#51d9df;--blue:#4da4f5}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 90% 0%,#25205a 0,transparent 36%),var(--bg);color:var(--text);font:16px/1.75 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    header,main,footer{width:min(920px,calc(100% - 36px));margin:auto}header{padding:28px 0 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px}
+    header img{width:48px;height:48px;border-radius:13px}header strong{letter-spacing:2px;font-size:15px}header span{display:block;color:var(--muted);font-size:12px;letter-spacing:0}
+    main{padding:48px 0 60px} .eyebrow{color:var(--cyan);font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+    h1{font-size:clamp(34px,6vw,52px);line-height:1.1;letter-spacing:-1.5px;margin:12px 0}
+    .updated{color:var(--muted);font-size:13px;margin-bottom:28px}
+    .intro,.section{background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));border:1px solid var(--line);border-radius:18px;padding:24px;margin:18px 0}
+    h2{font-size:19px;margin:0 0 10px;color:#fff}p{margin:8px 0;color:#d7e2f1}li{margin:7px 0;color:#d7e2f1}a{color:#78dce9;text-underline-offset:3px}strong{color:#fff}
+    .note{border-left:3px solid var(--cyan);padding:12px 16px;background:rgba(81,217,223,.07);border-radius:0 10px 10px 0;color:#dcecf7}
+    footer{border-top:1px solid var(--line);padding:22px 0 38px;color:var(--muted);font-size:12px}
+    @media(max-width:600px){main{padding-top:32px}.intro,.section{padding:18px}}
+  </style>
+</head>
+<body>
+<header>
+  <img src="/caseflow-logo.svg" alt="CASEFLOW logo" width="48" height="48">
+  <div><strong>CASEFLOW</strong><span>Living cases, clearer decisions</span></div>
+</header>
+<main>
+  <div class="eyebrow">Trust · Transparency · Accountability</div>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Effective date: 25 October 2026</div>
+  <section class="intro">
+    <p>This policy explains how information may be handled when you visit or use CASEFLOW, a case-workspace prototype for organizing situations, ownership, blockers, next actions, supporting evidence and case activity.</p>
+    <p class="note"><strong>Product status:</strong> CASEFLOW is under active development. Features and data flows can differ between the public preview, a configured server deployment and an Anna-connected runtime. Do not submit sensitive personal, financial, health, legal or confidential business information to a preview or test environment.</p>
+  </section>
+  <section class="section">
+    <h2>1. Information that may be processed</h2>
+    <ul>
+      <li><strong>Account information:</strong> work email address, account role and account status when account and authentication services are enabled.</li>
+      <li><strong>Case information:</strong> case title, description, owner, state, blocker and next action that a user enters.</li>
+      <li><strong>Evidence and activity:</strong> evidence text and source labels, plus records of case updates, reviews and related activity when the shared case service is enabled.</li>
+      <li><strong>Technical information:</strong> session identifiers, security and request metadata needed to operate, protect and troubleshoot the service.</li>
+      <li><strong>Support messages:</strong> information you choose to provide when contacting the project maintainer.</li>
+    </ul>
+    <p>Only provide information you are authorized to share. Avoid uploading secrets, passwords, payment details or unnecessary personal information.</p>
+  </section>
+  <section class="section">
+    <h2>2. How information is used</h2>
+    <p>Information is used to provide the workspace, authenticate users where enabled, enforce role-based access, display and maintain case records, preserve relevant activity, protect the service, diagnose errors and respond to support requests. Information is not sold.</p>
+  </section>
+  <section class="section">
+    <h2>3. Where information is stored</h2>
+    <ul>
+      <li><strong>Shared case service:</strong> the server implementation is designed to store account, case, evidence and case-history records in PostgreSQL. This applies only when that backend is deployed and connected to the environment you are using.</li>
+      <li><strong>Browser-local Governance Workspace:</strong> selected PDF text extraction, page indexing and keyword checks are performed in the browser. The selected PDF is not uploaded by this local extraction flow. Local governance decision records are stored in browser local storage and are not the server case-history audit record.</li>
+      <li><strong>Preview and connected runtimes:</strong> storage and processing may differ by deployment. Check the environment and its published configuration before entering real or sensitive information.</li>
+    </ul>
+  </section>
+  <section class="section">
+    <h2>4. Service providers</h2>
+    <p>CASEFLOW may rely on infrastructure providers to host the application and database. The server code also supports Resend for email delivery when the relevant credentials and sender configuration are enabled. A provider receives information only as needed to perform its service. The providers actually used can vary by deployment.</p>
+  </section>
+  <section class="section">
+    <h2>5. Cookies and session security</h2>
+    <p>Where server authentication is enabled, CASEFLOW uses a session cookie to maintain sign-in state. The server is configured to use an HttpOnly cookie, SameSite=Lax and Secure cookies in production. These settings do not eliminate every security risk. Browser-local features may also use local storage on your device.</p>
+  </section>
+  <section class="section">
+    <h2>6. Sharing and access</h2>
+    <p>CASEFLOW does not sell personal information. In a configured shared-workspace deployment, authorized administrators may have oversight access to workspace records, while account-manager access is intended to be limited by role and case ownership. Information may also be processed by infrastructure providers, or disclosed when required by applicable law or to protect the service and its users.</p>
+  </section>
+  <section class="section">
+    <h2>7. Retention and deletion</h2>
+    <p>Information is retained for as long as it is needed to operate the relevant workspace, maintain its records, meet legitimate operational or legal requirements, and resolve disputes. Retention and deletion controls depend on the deployment. Browser-local data can be cleared through the browser's site-data controls; doing so may permanently remove local records. For server-side account or case-data requests, contact the project maintainer. A deletion request may need to be verified and may be subject to backup, security or legal retention limits.</p>
+  </section>
+  <section class="section">
+    <h2>8. Your choices and requests</h2>
+    <p>You can choose not to submit optional information and should avoid using the preview for sensitive data. You may request access, correction or deletion of information associated with your use, subject to applicable law and the capabilities of the deployment. Do not post personal data or account credentials in a public issue tracker.</p>
+  </section>
+  <section class="section">
+    <h2>9. Security</h2>
+    <p>The server code includes security measures such as password hashing, role checks, rate limits, parameterized database queries and security headers. These describe implementation controls, not a guarantee that every deployment is configured, independently audited or free from vulnerabilities. Do not treat CASEFLOW as a certified compliance, records-retention or security platform.</p>
+  </section>
+  <section class="section">
+    <h2>10. Children</h2>
+    <p>CASEFLOW is a business-oriented workspace and is not designed for children or directed to children.</p>
+  </section>
+  <section class="section">
+    <h2>11. Changes to this policy</h2>
+    <p>This policy may be updated as the product and its data flows change. The effective date above will be revised when material changes are made. Please review this page periodically.</p>
+  </section>
+  <section class="section">
+    <h2>12. Contact</h2>
+    <p>For privacy questions or requests, contact the CASEFLOW project maintainer through the <a href="https://github.com/Sraveena1992">project maintainer's GitHub profile</a>. Do not include passwords, tokens or sensitive case information in a public post.</p>
+    <p>Project source: <a href="https://github.com/Sraveena1992/CASEFLOW">github.com/Sraveena1992/CASEFLOW</a>.</p>
+  </section>
+</main>
+<footer>© 2026 CASEFLOW · Privacy information for the CASEFLOW workspace.</footer>
+</body>
+</html>
