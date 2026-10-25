@@ -173,11 +173,20 @@ app.post('/api/auth/login', loginLimiter, requireCsrf, async (req, res, next) =>
   try {
     const email = normalizeEmail(req.body && req.body.email);
     const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
+    const expectedRole = req.body && req.body.expectedRole;
     if (!validEmail(email) || !password || password.length > 1024) return res.status(400).json({ error: 'Enter a valid email and password.' });
+    if (!['admin', 'account_manager'].includes(expectedRole)) return res.status(400).json({ error: 'Choose Admin login or Manager login before signing in.' });
     const result = await pool.query('SELECT id,email,password_hash,role,active FROM users WHERE email=$1', [email]);
     const user = result.rows[0];
     const matches = user && user.active ? await argon2.verify(user.password_hash, password).catch(() => false) : false;
     if (!matches) return res.status(401).json({ error: 'Email or password is incorrect.' });
+    // Enforce the selected workspace BEFORE creating an authenticated session.
+    // Admin credentials cannot enter through Manager login, and vice versa.
+    if (user.role !== expectedRole) return res.status(403).json({
+      error: expectedRole === 'admin'
+        ? 'This is not an Admin account. Select Manager login and use the assigned Account Manager credentials.'
+        : 'This is not an Account Manager account. Select Admin login and use the workspace owner credentials.'
+    });
     await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()));
     req.session.user = { id: String(user.id), email: user.email, role: user.role };
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
