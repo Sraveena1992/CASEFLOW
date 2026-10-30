@@ -9,7 +9,7 @@
 ## About CASEFLOW
 CASEFLOW is a secure, role-aware case workspace for work that is too important to leave scattered across inboxes, documents and chat threads. Each situation becomes a living record with an owner, current state, blocker, evidence, next action and a history of changes. **Progress should be understandable, decisions should be reviewable, and completion should be supported by evidence.**
 
-## Why CASEFLOW exists
+## Why CASEFLOW Exists
 Important work stalls in the gaps between information and action. Context gets lost, ownership becomes unclear, evidence is separated from decisions, and teams cannot explain why a case changed. CASEFLOW brings those moving parts into one structured workflow: understand the situation, see what is known and missing, make a human decision, and track what happens next. It is not intended to be another chat window or an opaque automation layer.
 
 ## Core features
@@ -37,6 +37,8 @@ Important work stalls in the gaps between information and action. Context gets l
 - **Admins** oversee cases, inspect audit history, manage team access and run read-only assurance checks.
 
 ## Product principles
+
+**Verified outcomes** matter more than attempted actions.
 - Evidence before conclusions.
 - Human authority over consequential decisions.
 - Clear ownership and least-privilege access.
